@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "quota-monitor"
+version = "0.1.0"
+description = "Monitor Claude / Codex 5-hour quota windows and notify on reset."
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [{name = "Frank"}]
+dependencies = []  # zero runtime dependencies
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+quota-monitor = "quota_monitor.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["quota_monitor*"]
+exclude = ["tests*"]
