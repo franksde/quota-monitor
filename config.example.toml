@@ -1,0 +1,33 @@
+# ~/.quota-monitor/config.toml
+locale = "en"              # "en" | "zh"
+log_level = "info"         # "debug" | "info" | "warn" | "error"
+
+[probes.claude]
+enabled = true
+threshold_turns = 5        # window activity count treated as "used"
+window_hours = 5
+
+[probes.codex]
+enabled = true
+threshold_percent = 30     # percent used that triggers alert
+
+[notifiers]
+primary = "telegram"       # required primary channel
+fallback = "macos_native"  # fallback when primary fails; empty string disables fallback
+
+[notifiers.telegram]
+# token / chat_id live in .env, not here
+
+[notifiers.cloudflare_relay]
+enabled = false
+webhook_url = ""           # setup wizard writes this after deploy
+
+[keepalive]                # see README §Risks
+enabled = false
+strategy = "polling"       # "polling" | "seamless"
+model = "haiku"
+phrase_pool = []           # empty = builtin DEFAULT_PHRASES; users may override
+
+# only used when strategy = "seamless"
+seamless_trigger_minutes = 30
+seamless_buffer_seconds = 60
