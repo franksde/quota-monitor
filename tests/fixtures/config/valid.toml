@@ -1,0 +1,29 @@
+locale = "en"
+log_level = "info"
+
+[probes.claude]
+enabled = true
+threshold_turns = 5
+window_hours = 5
+
+[probes.codex]
+enabled = false
+threshold_percent = 30
+
+[notifiers]
+primary = "telegram"
+fallback = "macos_native"
+
+[notifiers.telegram]
+
+[notifiers.cloudflare_relay]
+enabled = false
+webhook_url = ""
+
+[keepalive]
+enabled = false
+strategy = "polling"
+model = "haiku"
+phrase_pool = []
+seamless_trigger_minutes = 30
+seamless_buffer_seconds = 60
