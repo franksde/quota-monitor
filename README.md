@@ -22,6 +22,8 @@ prepare the outside world before you run the wizard.
 >    - `npm install -g wrangler`
 >    - `wrangler login`  (opens browser; I'll authenticate)
 >    - Confirm `wrangler whoami` returns my account.
+>    - Keep the relay cron at `*/3 * * * *` unless I explicitly choose
+>      a faster schedule.
 > 5. **Read README §Risks** with me — decide if I enable keepalive.
 > 6. **Decide** schedule install: LaunchAgent (default) or manual cron.
 >
@@ -83,7 +85,9 @@ Optional features:
 
 - Local mode costs $0.
 - Telegram Bot API is free for normal personal usage.
-- Cloudflare relay uses Workers + KV. The free tier is enough for typical personal QuotaMonitor usage: a scan every 5 minutes and a small number of scheduled alerts is far below 100k requests/day and 100k KV operations/day.
+- Cloudflare relay uses Workers + KV. Workers Free allows 100k requests/day. Workers KV Free includes 100k reads/day, plus 1,000 writes/day, 1,000 deletes/day, and 1,000 list requests/day.
+- The relay is designed to run its Worker cron every 3 minutes: `*/3 * * * *`. That is 480 scheduled checks/day, just under 500/day. Since the scheduled check lists KV entries, staying under 500/day avoids the common 50% usage-warning email for the 1,000/day KV list quota.
+- You can change the cron to every 2 minutes (`*/2 * * * *`) if you want faster delivery. That is 720 scheduled checks/day. It still leaves room under the hard free-tier limit, but you may get a daily usage-warning email.
 
 ## Choose your notification channel
 
@@ -113,7 +117,7 @@ The wizard can deploy the relay automatically when you pick `cloudflare_relay`. 
 The relay exposes:
 
 - `POST /api/schedule`: store a delayed Telegram message in KV.
-- `scheduled`: cron handler that sends due Telegram messages.
+- `scheduled`: cron handler that sends due Telegram messages. The default schedule is every 3 minutes (`*/3 * * * *`), which is 480 checks/day.
 - generic webhook handling for Claude status-style payloads.
 
 ## ⚠️ Risks
