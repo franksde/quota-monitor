@@ -1,6 +1,7 @@
 # Local state
 .env
 ~/.quota-monitor/
+.ccb
 
 # OS
 .DS_Store
@@ -15,3 +16,4 @@ __pycache__/
 
 # Node (for cloudflare-relay/)
 node_modules/
+cloudflare-relay/wrangler.toml
