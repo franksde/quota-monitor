@@ -17,3 +17,4 @@ __pycache__/
 # Node (for cloudflare-relay/)
 node_modules/
 cloudflare-relay/wrangler.toml
+.wrangler
