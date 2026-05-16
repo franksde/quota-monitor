@@ -38,15 +38,16 @@ MESSAGES = {
     "wizard.step7.title": "\n=== (7/7) Schedule install ===",
     "wizard.step7.install": "Install scheduler:",
     "wizard.step7.install.options": ["LaunchAgent (recommended)", "Print crontab line only", "Skip"],
-    "wizard.step6.strategy.options": ["polling (default)", "seamless (advanced)"],
+    "wizard.step6.strategy.options": ["polling - send scheduled requests (default)", "seamless - silent background swap before reset (advanced)"],
     "wizard.step3.primary.options": ["telegram (direct - fails if Mac sleeps)", "macos_native", "cloudflare_relay (advanced - cloud scheduled, Mac can sleep)"],
     "wizard.step3.fallback.options": ["macos_native", "(none)"],
     "wizard.complete": "Setup complete. First scan in ~5 minutes.",
     "wizard.keepalive.warning": (
-        "⚠️ Keepalive risks:\n"
+        "ℹ️ Keepalive sends automated requests to Claude Code to keep your 5-hour quota window active.\n"
+        "⚠️ Risks & Limitations:\n"
         "  1. ToS — Anthropic AUP may classify automated keepalive as abuse.\n"
         "  2. Sleep — both polling and seamless strategies stop working while macOS sleeps.\n"
-        "     The natural 5h reset still happens; keepalive cannot save it.\n"
+        "     The natural 5h reset still happens; keepalive cannot save it if the Mac is asleep.\n"
     ),
 
     "cli.status.no_state": "No state yet. Run `quota-monitor run` first.",

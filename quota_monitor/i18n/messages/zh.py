@@ -38,15 +38,16 @@ MESSAGES = {
     "wizard.step7.title": "\n=== (7/7) 定时任务安装 ===",
     "wizard.step7.install": "安装调度器:",
     "wizard.step7.install.options": ["LaunchAgent (推荐)", "仅打印 crontab 配置", "跳过"],
-    "wizard.step6.strategy.options": ["polling (默认)", "seamless (高级)"],
+    "wizard.step6.strategy.options": ["polling - 定时自动发送无意义请求防过期 (默认)", "seamless - 仅在快重置时无缝替换提示词 (高级)"],
     "wizard.step3.primary.options": ["telegram (直连 - 电脑休眠时失效)", "macos_native (本地通知)", "cloudflare_relay (高级 - 云端延迟发送，电脑可休眠)"],
     "wizard.step3.fallback.options": ["macos_native (本地通知)", "(无)"],
     "wizard.complete": "配置完成。约 5 分钟后首次扫描。",
     "wizard.keepalive.warning": (
-        "⚠️ Keepalive 风险:\n"
-        "  1. ToS — Anthropic AUP 可能将自动 keepalive 归类为滥用。\n"
-        "  2. 睡眠 — polling 与 seamless 在 macOS 睡眠期间都会停止工作。\n"
-        "     自然 5h 重置仍会发生;keepalive 无法挽救。\n"
+        "ℹ️ 防休眠 (Keepalive) 的作用是自动发送请求，为你保活 Claude Code 的 5 小时额度窗口。\n"
+        "⚠️ 风险与限制:\n"
+        "  1. 服务条款 — Anthropic AUP 可能将自动化请求归类为滥用。\n"
+        "  2. 休眠失效 — polling 与 seamless 策略在 macOS 休眠期间均会停止工作。\n"
+        "     自然的 5 小时重置仍会发生；如果电脑休眠，keepalive 无法挽救额度。\n"
     ),
 
     "cli.status.no_state": "尚无状态。请先运行 `quota-monitor run`。",
