@@ -2,7 +2,9 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+from ..config.dotenv import parse_dotenv
 from ..i18n import set_locale, t
+from .notify_test import send_test
 from ._input import ask_choice, ask_string, ask_yes_no
 from ._preflight import preflight_check
 
@@ -54,9 +56,10 @@ def _render_env(answers: dict) -> str:
     )
 
 
-def _collect_interactive_answers() -> dict:
+def _collect_interactive_answers(*, existing_secrets: Optional[dict[str, str]] = None) -> dict:
     """Walk the user through the wizard steps and return an answers dict."""
     answers: dict = {}
+    existing_secrets = existing_secrets or {}
 
     print("\n=== (1/7) Language ===")
     locale_idx = ask_choice("Select language:", ["English", "中文"], default=0)
@@ -83,8 +86,15 @@ def _collect_interactive_answers() -> dict:
 
     print("\n=== (4/7) Telegram credentials ===")
     if answers["primary"] == "telegram" or answers["primary"] == "cloudflare_relay":
-        answers["telegram_bot_token"] = ask_string("Bot token", secret=True)
-        answers["telegram_chat_id"] = ask_string("Chat ID")
+        existing_token = existing_secrets.get("TELEGRAM_BOT_TOKEN", "")
+        existing_chat = existing_secrets.get("TELEGRAM_CHAT_ID", "")
+        if existing_token and existing_chat:
+            print("Using Telegram credentials from existing .env.")
+            answers["telegram_bot_token"] = existing_token
+            answers["telegram_chat_id"] = existing_chat
+        else:
+            answers["telegram_bot_token"] = ask_string("Bot token", secret=True)
+            answers["telegram_chat_id"] = ask_string("Chat ID")
         answers["skip_telegram_test"] = not ask_yes_no("Send a test message?", default=True)
     else:
         answers["telegram_bot_token"] = ""
@@ -173,7 +183,10 @@ def run_wizard(
         return 2
 
     if not non_interactive:
-        answers = _collect_interactive_answers()
+        existing_secrets = {}
+        if env_path.exists():
+            existing_secrets = parse_dotenv(env_path.read_text())
+        answers = _collect_interactive_answers(existing_secrets=existing_secrets)
     if answers is None:
         print("[error] no answers provided", file=sys.stderr)
         return 2
@@ -185,6 +198,11 @@ def run_wizard(
     config_path.write_text(_render_config(answers))
     env_path.write_text(_render_env(answers))
     print(f"\nWrote {config_path}\nWrote {env_path}")
+
+    if not answers.get("skip_telegram_test", True) and answers.get("primary") in ("telegram", "cloudflare_relay"):
+        rc = send_test(config_path=config_path, env_path=env_path, backend=answers["primary"])
+        if rc != 0:
+            return rc
 
     schedule = answers.get("schedule", "skip")
     if schedule == "launchagent":
