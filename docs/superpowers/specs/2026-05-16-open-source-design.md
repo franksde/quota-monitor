@@ -284,12 +284,12 @@ TELEGRAM_CHAT_ID=
 
 ## 6. 状态文件 Schema
 
+> **Post-bug-fix simplification (2026-05-16)**: 原 spec 在 `claude` 块里有 `current_window_start` 和 `current_window_reset`。**已删除**。原 `monitor.py` 因为保存 `last_reset_time` 并用它过滤历史导致"saved 时间在未来时所有历史 timestamps 都被过滤掉、count=0、报警永远不触发"的死寂 bug。修复方法是**算法层面**改用 Full Replay (`replay_windows(timestamps)` — 见 plan Task 9):每次 tick 都从最早的时间戳重放整段历史得到最新窗口,state 完全不参与切分。state 只保留"哪个 reset 已经报过警"。这样原 bug 在结构上不再可能。
+
 ```json
 {
   "schema_version": 1,
   "claude": {
-    "current_window_start": 1747350000,
-    "current_window_reset": 1747368000,
     "alerted_for_reset": 1747368000
   },
   "codex": {
@@ -308,11 +308,12 @@ TELEGRAM_CHAT_ID=
 
 - 路径 `~/.quota-monitor/state.json`,与项目目录解耦(cron 工作目录不稳)
 - `schema_version` 给未来 v2 迁移留口子,v1 = 1
-- `alerted_for_reset = <ts>` 替代原项目的 `has_alerted_this_window: bool` + 独立 reset 字段
-  → **单一信源**:跨窗口判断退化为 `state.alerted_for_reset == current_window_reset`
+- **`claude.alerted_for_reset` 是 Claude 状态的唯一字段**——单一信源,跨窗口判断退化为 `state.claude.alerted_for_reset == int(latest_window.reset)`,无任何不一致空间
+- 窗口起止时间**不入 state**——它们每次 tick 由 `replay_windows()` 从 probe 时间戳现算
 - `phrase_pool_size_at_init` 记录用户配置时的池大小;若 `len(cfg.phrase_pool) != size_at_init` → 视为池已改,清空 used 索引重新开始
 - 损坏 / 缺失 → 重置 default + log warn,绝不崩
 - 并发写入 → atomic write (写 `.tmp` → `os.rename`),不上文件锁
+- 向后兼容:loader 见到旧字段(`current_window_start` / `current_window_reset`)静默丢弃
 
 ---
 
