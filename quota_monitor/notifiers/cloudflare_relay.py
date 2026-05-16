@@ -18,7 +18,10 @@ class CloudflareRelayNotifier:
             "reset_time_epoch": int(alert.reset_at),
             "message": f"*{alert.title}*\n\n{alert.body}",
         }).encode()
-        req = Request(self.webhook_url, data=payload, headers={"Content-Type": "application/json"})
+        req = Request(self.webhook_url, data=payload, headers={
+            "Content-Type": "application/json",
+            "User-Agent": "QuotaMonitor/0.1.0",
+        })
         try:
             with urlopen(req, timeout=10) as resp:
                 if resp.status >= 400:

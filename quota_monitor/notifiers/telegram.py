@@ -18,7 +18,10 @@ class TelegramNotifier:
         text = f"*{alert.title}*\n\n{alert.body}"
         url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
         payload = json.dumps({"chat_id": self.chat_id, "text": text, "parse_mode": "Markdown"}).encode()
-        req = Request(url, data=payload, headers={"Content-Type": "application/json"})
+        req = Request(url, data=payload, headers={
+            "Content-Type": "application/json",
+            "User-Agent": "QuotaMonitor/0.1.0",
+        })
         try:
             with urlopen(req, timeout=10) as resp:
                 if resp.status >= 400:
