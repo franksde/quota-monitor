@@ -40,6 +40,14 @@ def main(argv: list[str] | None = None) -> int:
             state_path=platform_paths.state_file(),
             config_path=platform_paths.config_file(),
         )
+    if args.cmd == "notify-test":
+        from .cli.notify_test import send_test
+        from .platform import paths as platform_paths
+        return send_test(
+            config_path=platform_paths.config_file(),
+            env_path=platform_paths.env_file(),
+            backend=args.backend,
+        )
     # other subcommands wired in later tasks
     print(f"[stub] {args.cmd} not yet implemented", file=sys.stderr)
     return 0
