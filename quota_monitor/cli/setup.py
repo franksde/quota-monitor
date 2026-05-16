@@ -90,7 +90,29 @@ def _collect_interactive_answers() -> dict:
         answers["telegram_bot_token"] = ""
         answers["telegram_chat_id"] = ""
 
-    # Step 5 (CF) is handled separately in Task 26 — skipped here.
+    # === (5/7) Cloudflare relay deployment (only if user picked it) ===
+    if answers["primary"] == "cloudflare_relay":
+        print("\n=== (5/7) Cloudflare relay deployment ===")
+        errors, _ = preflight_check(need_wrangler=True)
+        if errors:
+            print("[error] CF preflight failed:")
+            for e in errors:
+                print(f"  - {e}")
+            print("Fix and re-run setup.")
+            raise SystemExit(2)
+        from ._wrangler import deploy_cf_relay
+        relay_dir = Path(__file__).resolve().parent.parent.parent / "cloudflare-relay"
+        url = deploy_cf_relay(
+            relay_dir=relay_dir,
+            telegram_bot_token=answers["telegram_bot_token"],
+            telegram_chat_id=answers["telegram_chat_id"],
+        )
+        if url is None:
+            print("[error] Cloudflare deploy failed. Re-run setup once you fix the issue.")
+            raise SystemExit(3)
+        answers["cloudflare_enabled"] = True
+        answers["cloudflare_webhook_url"] = f"{url}/api/schedule"
+        print(f"Deployed: {url}")
 
     print("\n=== (6/7) Keepalive ===")
     print(t("wizard.keepalive.warning"))
