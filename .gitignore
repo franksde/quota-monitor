@@ -1,0 +1,17 @@
+# Local state
+.env
+~/.quota-monitor/
+
+# OS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.venv/
+
+# Node (for cloudflare-relay/)
+node_modules/
