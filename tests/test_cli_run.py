@@ -27,6 +27,31 @@ strategy = "polling"
     return cfg
 
 
+def _write_keepalive_config(tmp_path: Path) -> Path:
+    cfg = tmp_path / "config.toml"
+    cfg.write_text("""
+locale = "en"
+[probes.claude]
+enabled = true
+threshold_turns = 5
+window_hours = 5
+[probes.codex]
+enabled = false
+[notifiers]
+primary = "telegram"
+fallback = ""
+[notifiers.telegram]
+[notifiers.cloudflare_relay]
+enabled = false
+[keepalive]
+enabled = true
+strategy = "polling"
+model = "haiku"
+phrase_pool = ["probe"]
+""")
+    return cfg
+
+
 def _write_env(tmp_path: Path) -> Path:
     env = tmp_path / ".env"
     env.write_text("TELEGRAM_BOT_TOKEN=tok\nTELEGRAM_CHAT_ID=cid\n")
@@ -68,6 +93,23 @@ def test_run_once_dry_run_does_not_send_or_save(tmp_path):
     assert rc == 0
     tg_instance.send.assert_not_called()
     assert not state_path.exists()
+
+
+def test_run_once_runs_polling_keepalive_when_enabled(tmp_path, capsys):
+    cfg_path = _write_keepalive_config(tmp_path)
+    env_path = _write_env(tmp_path)
+    state_path = tmp_path / "state.json"
+    now = 20_000.0
+    fake = MagicMock(source="claude", timestamps=(now - 6 * 3600,), extra={})
+    with patch("quota_monitor.cli.run.scan_claude", return_value=fake), \
+         patch("quota_monitor.keepalive.polling.run_keepalive", return_value=True) as keepalive:
+        rc = run_once(config_path=cfg_path, env_path=env_path, state_path=state_path, now=now, dry_run=False)
+    assert rc == 0
+    keepalive.assert_called_once()
+    saved = json.loads(state_path.read_text())
+    assert saved["keepalive"]["phrase_pool_size_at_init"] == 1
+    assert saved["keepalive"]["phrase_pool_used_indices"] == [0]
+    assert "[info] keepalive sent: probe" in capsys.readouterr().out
 
 
 def test_run_once_returns_nonzero_when_config_missing(tmp_path):

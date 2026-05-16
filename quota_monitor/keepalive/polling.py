@@ -5,6 +5,7 @@ from typing import Sequence
 
 from ..core.state import State
 from ..core.window import replay_windows
+from ..i18n import t
 from .activity import is_idle
 from .phrases import PhraseState, pick_phrase
 from .runner import run_keepalive
@@ -40,6 +41,7 @@ def polling_tick(
     ok = run_keepalive(claude_cli=claude_cli, shell=shell, phrase=phrase, model=model)
     if not ok:
         return PollingDecision.FAILED, state
+    print(t("log.keepalive_fired", phrase=phrase))
 
     new_keepalive = replace(
         state.keepalive,

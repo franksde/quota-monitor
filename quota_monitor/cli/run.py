@@ -1,4 +1,5 @@
 import sys
+import shutil
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -120,6 +121,37 @@ def run_once(
                 new_state = replace(new_state, codex=CodexState(
                     alerted_for_reset=d.reset_at, cooldown_until=d.reset_at,
                 ))
+
+    if cfg.keepalive.enabled:
+        timestamps = claude_result.timestamps if claude_result is not None else ()
+        claude_cli = shutil.which("claude") or str(Path.home() / ".local" / "bin" / "claude")
+        shell = "/bin/zsh"
+        idle_seconds = cfg.probes.claude.window_hours * 3600
+        if cfg.keepalive.strategy == "polling":
+            from ..keepalive.polling import polling_tick
+            _, new_state = polling_tick(
+                state=new_state,
+                now=now,
+                timestamps=timestamps,
+                idle_seconds=idle_seconds,
+                claude_cli=claude_cli,
+                shell=shell,
+                model=cfg.keepalive.model,
+                phrase_pool=cfg.keepalive.phrase_pool,
+            )
+        elif cfg.keepalive.strategy == "seamless":
+            from ..keepalive.seamless import seamless_tick
+            _, new_state = seamless_tick(
+                state=new_state,
+                now=now,
+                timestamps=timestamps,
+                claude_cli=claude_cli,
+                shell=shell,
+                model=cfg.keepalive.model,
+                phrase_pool=cfg.keepalive.phrase_pool,
+                trigger_minutes=cfg.keepalive.seamless_trigger_minutes,
+                buffer_seconds=cfg.keepalive.seamless_buffer_seconds,
+            )
 
     save_state(state_path, new_state)
     return 0
