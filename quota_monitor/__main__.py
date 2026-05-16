@@ -23,9 +23,10 @@ def main(argv: list[str] | None = None) -> int:
         parser.print_help()
         return 0
 
+    from .platform import paths as platform_paths
+
     if args.cmd == "run":
         from .cli.run import run_once
-        from .platform import paths as platform_paths
         return run_once(
             config_path=platform_paths.config_file(),
             env_path=platform_paths.env_file(),
@@ -35,14 +36,12 @@ def main(argv: list[str] | None = None) -> int:
         )
     if args.cmd == "status":
         from .cli.status import show_status
-        from .platform import paths as platform_paths
         return show_status(
             state_path=platform_paths.state_file(),
             config_path=platform_paths.config_file(),
         )
     if args.cmd == "notify-test":
         from .cli.notify_test import send_test
-        from .platform import paths as platform_paths
         return send_test(
             config_path=platform_paths.config_file(),
             env_path=platform_paths.env_file(),
@@ -50,11 +49,17 @@ def main(argv: list[str] | None = None) -> int:
         )
     if args.cmd == "uninstall":
         from .cli.uninstall import uninstall
-        from .platform import paths as platform_paths
         label = "io.github.frank.quotamonitor"
         return uninstall(
             launch_agent_label=label,
             plist_path=platform_paths.launch_agent_path(label),
+        )
+    if args.cmd == "setup":
+        from .cli.setup import run_wizard
+        return run_wizard(
+            config_path=platform_paths.config_file(),
+            env_path=platform_paths.env_file(),
+            data_dir=platform_paths.user_data_dir(),
         )
     # other subcommands wired in later tasks
     print(f"[stub] {args.cmd} not yet implemented", file=sys.stderr)

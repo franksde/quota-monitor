@@ -1,0 +1,12 @@
+{
+  "locale": "en",
+  "claude_enabled": true,
+  "codex_enabled": false,
+  "primary": "telegram",
+  "fallback": "macos_native",
+  "telegram_bot_token": "TEST_TOKEN",
+  "telegram_chat_id": "TEST_CHAT",
+  "skip_telegram_test": true,
+  "keepalive_enabled": false,
+  "schedule": "skip"
+}
