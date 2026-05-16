@@ -27,6 +27,10 @@ def deploy_cf_relay(
     """Half-automatic CF deploy. Returns the deployed worker URL on success, None on failure."""
     print("Creating KV namespace ALERTS_KV...")
     rc, out, err = _run_wrangler(["kv", "namespace", "create", "ALERTS_KV"], cwd=relay_dir)
+    if rc != 0 and "already exists" in err:
+        print("  ALERTS_KV already exists (likely from old project). Creating QM_RELAY_ALERTS instead...")
+        rc, out, err = _run_wrangler(["kv", "namespace", "create", "QM_RELAY_ALERTS"], cwd=relay_dir)
+    
     if rc != 0:
         print(f"[error] kv namespace create failed: {err}", file=sys.stderr)
         return None
