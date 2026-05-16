@@ -33,6 +33,13 @@ def main(argv: list[str] | None = None) -> int:
             now=time.time(),
             dry_run=args.dry_run,
         )
+    if args.cmd == "status":
+        from .cli.status import show_status
+        from .platform import paths as platform_paths
+        return show_status(
+            state_path=platform_paths.state_file(),
+            config_path=platform_paths.config_file(),
+        )
     # other subcommands wired in later tasks
     print(f"[stub] {args.cmd} not yet implemented", file=sys.stderr)
     return 0
