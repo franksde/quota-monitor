@@ -13,9 +13,11 @@ def test_deploy_creates_kv_pushes_secrets_and_deploys(tmp_path):
         'name = "qm-relay"\nmain = "src/worker.js"\n[[kv_namespaces]]\nbinding = "ALERTS_KV"\nid = "REPLACE_ME"\n'
     )
     calls = []
+    cwd_values = []
 
     def fake_run(cmd, **kw):
         calls.append(cmd)
+        cwd_values.append(kw.get("cwd"))
         if cmd[:3] == ["wrangler", "kv:namespace", "create"]:
             return _ok(stdout='{"id": "abc-kv-id"}\n')
         if cmd[:2] == ["wrangler", "deploy"]:
@@ -36,6 +38,7 @@ def test_deploy_creates_kv_pushes_secrets_and_deploys(tmp_path):
     secret_cmds = [c for c in calls if c[:3] == ["wrangler", "secret", "put"]]
     assert any("TELEGRAM_BOT_TOKEN" in c for c in secret_cmds)
     assert any("TELEGRAM_CHAT_ID" in c for c in secret_cmds)
+    assert all(cwd == relay_dir for cwd in cwd_values)
 
 
 def test_deploy_returns_none_on_wrangler_failure(tmp_path):

@@ -6,11 +6,11 @@ from pathlib import Path
 from typing import Optional
 
 
-def _run_wrangler(args: list[str], *, stdin: Optional[str] = None) -> tuple[int, str, str]:
+def _run_wrangler(args: list[str], *, cwd: Path, stdin: Optional[str] = None) -> tuple[int, str, str]:
     try:
         result = subprocess.run(
             ["wrangler", *args],
-            input=stdin,
+            cwd=cwd, input=stdin,
             capture_output=True, text=True, timeout=120,
         )
         return result.returncode, result.stdout, result.stderr
@@ -26,7 +26,7 @@ def deploy_cf_relay(
 ) -> Optional[str]:
     """Half-automatic CF deploy. Returns the deployed worker URL on success, None on failure."""
     print("Creating KV namespace ALERTS_KV...")
-    rc, out, err = _run_wrangler(["kv:namespace", "create", "ALERTS_KV"])
+    rc, out, err = _run_wrangler(["kv:namespace", "create", "ALERTS_KV"], cwd=relay_dir)
     if rc != 0:
         print(f"[error] kv:namespace create failed: {err}", file=sys.stderr)
         return None
@@ -52,13 +52,13 @@ def deploy_cf_relay(
         ("TELEGRAM_BOT_TOKEN", telegram_bot_token),
         ("TELEGRAM_CHAT_ID", telegram_chat_id),
     ]:
-        rc, _, err = _run_wrangler(["secret", "put", secret_name], stdin=secret_value + "\n")
+        rc, _, err = _run_wrangler(["secret", "put", secret_name], cwd=relay_dir, stdin=secret_value + "\n")
         if rc != 0:
             print(f"[error] secret put {secret_name} failed: {err}", file=sys.stderr)
             return None
 
     print("Deploying worker...")
-    rc, out, err = _run_wrangler(["deploy"])
+    rc, out, err = _run_wrangler(["deploy"], cwd=relay_dir)
     if rc != 0:
         print(f"[error] wrangler deploy failed: {err}", file=sys.stderr)
         return None
