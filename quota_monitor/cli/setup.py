@@ -66,49 +66,49 @@ def _collect_interactive_answers(*, existing_secrets: Optional[dict[str, str]] =
     answers["locale"] = "en" if locale_idx == 0 else "zh"
     set_locale(answers["locale"])
 
-    print("\n=== (2/7) Services to monitor ===")
-    answers["claude_enabled"] = ask_yes_no("Monitor Claude?", default=True)
-    answers["codex_enabled"] = ask_yes_no("Monitor Codex (requires ~/.codex/auth.json)?", default=False)
+    print(t("wizard.step2.title"))
+    answers["claude_enabled"] = ask_yes_no(t("wizard.step2.claude"), default=True)
+    answers["codex_enabled"] = ask_yes_no(t("wizard.step2.codex"), default=False)
 
-    print("\n=== (3/7) Notification ===")
+    print(t("wizard.step3.title"))
     primary_idx = ask_choice(
-        "Primary notifier:",
-        ["telegram (direct)", "macos_native", "cloudflare_relay (advanced)"],
+        t("wizard.step3.primary"),
+        t("wizard.step3.primary.options"),
         default=0,
     )
     answers["primary"] = ["telegram", "macos_native", "cloudflare_relay"][primary_idx]
     fallback_idx = ask_choice(
-        "Fallback when primary fails:",
-        ["macos_native", "(none)"],
+        t("wizard.step3.fallback"),
+        t("wizard.step3.fallback.options"),
         default=0,
     )
     answers["fallback"] = ["macos_native", ""][fallback_idx]
 
-    print("\n=== (4/7) Telegram credentials ===")
+    print(t("wizard.step4.title"))
     if answers["primary"] == "telegram" or answers["primary"] == "cloudflare_relay":
         existing_token = existing_secrets.get("TELEGRAM_BOT_TOKEN", "")
         existing_chat = existing_secrets.get("TELEGRAM_CHAT_ID", "")
         if existing_token and existing_chat:
-            print("Using Telegram credentials from existing .env.")
+            print(t("wizard.step4.use_existing"))
             answers["telegram_bot_token"] = existing_token
             answers["telegram_chat_id"] = existing_chat
         else:
-            answers["telegram_bot_token"] = ask_string("Bot token", secret=True)
-            answers["telegram_chat_id"] = ask_string("Chat ID")
-        answers["skip_telegram_test"] = not ask_yes_no("Send a test message?", default=True)
+            answers["telegram_bot_token"] = ask_string(t("wizard.step4.token"), secret=True)
+            answers["telegram_chat_id"] = ask_string(t("wizard.step4.chat_id"))
+        answers["skip_telegram_test"] = not ask_yes_no(t("wizard.step4.test"), default=True)
     else:
         answers["telegram_bot_token"] = ""
         answers["telegram_chat_id"] = ""
 
     # === (5/7) Cloudflare relay deployment (only if user picked it) ===
     if answers["primary"] == "cloudflare_relay":
-        print("\n=== (5/7) Cloudflare relay deployment ===")
+        print(t("wizard.step5.title"))
         errors, _ = preflight_check(need_wrangler=True)
         if errors:
-            print("[error] CF preflight failed:")
+            print(t("wizard.step5.preflight_fail"))
             for e in errors:
                 print(f"  - {e}")
-            print("Fix and re-run setup.")
+            print(t("wizard.step5.fix_rerun"))
             raise SystemExit(2)
         from ._wrangler import deploy_cf_relay
         relay_dir = Path(__file__).resolve().parent.parent.parent / "cloudflare-relay"
@@ -118,23 +118,23 @@ def _collect_interactive_answers(*, existing_secrets: Optional[dict[str, str]] =
             telegram_chat_id=answers["telegram_chat_id"],
         )
         if url is None:
-            print("[error] Cloudflare deploy failed. Re-run setup once you fix the issue.")
+            print(t("wizard.step5.deploy_fail"))
             raise SystemExit(3)
         answers["cloudflare_enabled"] = True
         answers["cloudflare_webhook_url"] = f"{url}/api/schedule"
-        print(f"Deployed: {url}")
+        print(t("wizard.step5.deployed", url=url))
 
-    print("\n=== (6/7) Keepalive ===")
+    print(t("wizard.step6.title"))
     print(t("wizard.keepalive.warning"))
-    answers["keepalive_enabled"] = ask_yes_no("Enable keepalive?", default=False)
+    answers["keepalive_enabled"] = ask_yes_no(t("wizard.step6.enable"), default=False)
     if answers["keepalive_enabled"]:
-        idx = ask_choice("Strategy:", ["polling (default)", "seamless (advanced)"], default=0)
+        idx = ask_choice(t("wizard.step6.strategy"), t("wizard.step6.strategy.options"), default=0)
         answers["keepalive_strategy"] = "polling" if idx == 0 else "seamless"
 
-    print("\n=== (7/7) Schedule install ===")
+    print(t("wizard.step7.title"))
     sched_idx = ask_choice(
-        "Install scheduler:",
-        ["LaunchAgent (recommended)", "Print crontab line only", "Skip"],
+        t("wizard.step7.install"),
+        t("wizard.step7.install.options"),
         default=0,
     )
     answers["schedule"] = ["launchagent", "crontab", "skip"][sched_idx]
