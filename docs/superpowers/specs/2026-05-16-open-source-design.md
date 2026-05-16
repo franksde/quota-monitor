@@ -364,14 +364,18 @@ class NotifierError(Exception):
 
 ### 8.1 Strategy
 
-| Strategy | 行为 | 跨睡眠 |
-|---|---|---|
-| `polling`(默认) | cron 每次 tick 检查"是否已过 reset 或距 reset < poll_interval",已过 → 立即续 | ✅ |
-| `seamless`(高级) | 窗口剩 ≤30 分钟时挂 tmux + sleep,reset 后 +60s 续杯 | ❌(macOS 睡眠时 sleep 时钟停) |
+|  Strategy | 行为 | 调度恢复(睡眠醒后) | 业务效果(整夜睡眠) |
+|---|---|---|---|
+| `polling`(默认) | cron 每次 tick 检查"是否已过 reset 或距 reset < poll_interval",已过 → 立即续 | ✅ launchd 醒后立即触发下次 tick | ❌ 睡眠期已自然 reset 的窗口救不回 |
+| `seamless`(高级) | 窗口剩 ≤30 分钟时挂 tmux + sleep,reset 后 +60s 续杯 | ❌ macOS sleep 时单调时钟停,挂起的 tmux 倒计时被推迟 | ❌ 同上 + 倒计时错位 |
+
+两列含义:
+- **调度恢复**:电脑醒来后,调度机制本身能不能继续工作。polling 走 launchd 重新触发,seamless 走 `tmux sleep N` 本身被睡眠暂停。
+- **业务效果**:无论调度是否恢复,睡眠期内已经过了 reset 时刻的窗口已经被 Anthropic 那边自然 reset,本地续杯救不回。
 
 ### 8.2 Sleep 限制(必须告知用户)
 
-**两种 strategy 在 macOS 整机 sleep(合盖 / idle sleep)期间都失效**——续杯命令必须在本机跑,系统挂起期间无法执行。
+**业务效果维度上,两种 strategy 在 macOS 整机 sleep(合盖 / idle sleep)期间都救不回已经 reset 的窗口**——续杯命令必须在本机跑,系统挂起期间无法执行;醒来后那个窗口的自然 reset 已发生。
 **README §Risks 与向导步 6 必须明示**:"若 MacBook 夜里 sleep,窗口会自然 reset,keepalive 救不回。"
 
 ### 8.3 Phrase Pool
