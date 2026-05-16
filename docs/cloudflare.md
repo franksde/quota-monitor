@@ -79,6 +79,33 @@ Useful checks:
 
 For personal use, the free tier is enough. The relay defaults to a cron every 3 minutes (`*/3 * * * *`), which is 480 scheduled checks/day. Each check lists KV entries, so 480/day stays below the common 50% warning point for the 1,000/day KV list quota. If you change the cron to every 2 minutes (`*/2 * * * *`), that becomes 720 checks/day; it is still below the hard free-tier quota, but you may receive a daily usage-warning email.
 
+## Claude Status Notifications (bonus)
+
+The relay Worker also handles [Claude Status](https://status.anthropic.com) webhooks. When Claude has an incident or component status change, the Worker forwards it to your Telegram — no extra code needed.
+
+### How to subscribe
+
+1. Open [status.anthropic.com](https://status.anthropic.com).
+2. Click **Subscribe to Updates**.
+3. Choose **Webhook**.
+4. Enter your Worker root URL: `https://<your-worker>.workers.dev` (not `/api/schedule`).
+5. Confirm the subscription.
+
+This is a one-time setup. You will receive Telegram messages like:
+
+```
+🚨 Claude incident update
+
+Event: API Degraded Performance
+Status: investigating
+Detail: We are investigating reports of...
+Link: https://status.anthropic.com/incidents/abc123
+```
+
+### How it works
+
+The Worker checks incoming POST payloads for Atlassian Statuspage fields (`incident`, `component_update`). Matching payloads are formatted and forwarded to Telegram. Unrecognized payloads are forwarded as raw JSON.
+
 ## Security
 
 Use a scoped Cloudflare API token with Workers + KV only. Never use or paste a Global API Key into an AI agent session.
