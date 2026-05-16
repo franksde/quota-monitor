@@ -28,7 +28,7 @@ MESSAGES = {
     "wizard.step7.install": "安装调度器:",
     "wizard.step7.install.options": ["LaunchAgent (推荐)", "仅打印 crontab 配置", "跳过"],
     "wizard.step6.strategy.options": ["polling (默认)", "seamless (高级)"],
-    "wizard.step3.primary.options": ["telegram (直连)", "macos_native (本地通知)", "cloudflare_relay (高级)"],
+    "wizard.step3.primary.options": ["telegram (直连 - 电脑休眠时失效)", "macos_native (本地通知)", "cloudflare_relay (高级 - 云端延迟发送，电脑可休眠)"],
     "wizard.step3.fallback.options": ["macos_native (本地通知)", "(无)"],
     "wizard.complete": "配置完成。约 5 分钟后首次扫描。",
     "wizard.keepalive.warning": (

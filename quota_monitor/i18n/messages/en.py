@@ -28,7 +28,7 @@ MESSAGES = {
     "wizard.step7.install": "Install scheduler:",
     "wizard.step7.install.options": ["LaunchAgent (recommended)", "Print crontab line only", "Skip"],
     "wizard.step6.strategy.options": ["polling (default)", "seamless (advanced)"],
-    "wizard.step3.primary.options": ["telegram (direct)", "macos_native", "cloudflare_relay (advanced)"],
+    "wizard.step3.primary.options": ["telegram (direct - fails if Mac sleeps)", "macos_native", "cloudflare_relay (advanced - cloud scheduled, Mac can sleep)"],
     "wizard.step3.fallback.options": ["macos_native", "(none)"],
     "wizard.complete": "Setup complete. First scan in ~5 minutes.",
     "wizard.keepalive.warning": (
