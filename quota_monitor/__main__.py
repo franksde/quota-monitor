@@ -48,6 +48,14 @@ def main(argv: list[str] | None = None) -> int:
             env_path=platform_paths.env_file(),
             backend=args.backend,
         )
+    if args.cmd == "uninstall":
+        from .cli.uninstall import uninstall
+        from .platform import paths as platform_paths
+        label = "io.github.frank.quotamonitor"
+        return uninstall(
+            launch_agent_label=label,
+            plist_path=platform_paths.launch_agent_path(label),
+        )
     # other subcommands wired in later tasks
     print(f"[stub] {args.cmd} not yet implemented", file=sys.stderr)
     return 0
