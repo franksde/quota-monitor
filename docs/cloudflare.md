@@ -26,7 +26,7 @@ Choose `cloudflare_relay` as the primary notifier. The wizard will:
 npm install -g wrangler
 wrangler login
 cd cloudflare-relay
-wrangler kv:namespace create ALERTS_KV
+wrangler kv namespace create ALERTS_KV
 cp wrangler.toml.example wrangler.toml
 $EDITOR wrangler.toml
 wrangler secret put TELEGRAM_BOT_TOKEN
@@ -77,7 +77,7 @@ Useful checks:
 
 ## Cost Math
 
-For personal use, the free tier is enough. A cron every 3 minutes is 480 scheduled invocations/day. A handful of scheduled alert writes and deletes is far below 100k KV operations/day.
+For personal use, the free tier is enough. The relay defaults to a cron every 3 minutes (`*/3 * * * *`), which is 480 scheduled checks/day. Each check lists KV entries, so 480/day stays below the common 50% warning point for the 1,000/day KV list quota. If you change the cron to every 2 minutes (`*/2 * * * *`), that becomes 720 checks/day; it is still below the hard free-tier quota, but you may receive a daily usage-warning email.
 
 ## Security
 

@@ -26,9 +26,9 @@ def deploy_cf_relay(
 ) -> Optional[str]:
     """Half-automatic CF deploy. Returns the deployed worker URL on success, None on failure."""
     print("Creating KV namespace ALERTS_KV...")
-    rc, out, err = _run_wrangler(["kv:namespace", "create", "ALERTS_KV"], cwd=relay_dir)
+    rc, out, err = _run_wrangler(["kv", "namespace", "create", "ALERTS_KV"], cwd=relay_dir)
     if rc != 0:
-        print(f"[error] kv:namespace create failed: {err}", file=sys.stderr)
+        print(f"[error] kv namespace create failed: {err}", file=sys.stderr)
         return None
     # Wrangler prints either JSON or a human line containing `id = "..."`. Try both.
     kv_id = None

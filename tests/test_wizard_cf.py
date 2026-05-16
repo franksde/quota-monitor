@@ -18,7 +18,7 @@ def test_deploy_creates_kv_pushes_secrets_and_deploys(tmp_path):
     def fake_run(cmd, **kw):
         calls.append(cmd)
         cwd_values.append(kw.get("cwd"))
-        if cmd[:3] == ["wrangler", "kv:namespace", "create"]:
+        if cmd[:4] == ["wrangler", "kv", "namespace", "create"]:
             return _ok(stdout='{"id": "abc-kv-id"}\n')
         if cmd[:2] == ["wrangler", "deploy"]:
             return _ok(stdout='Published https://qm-relay-frank.workers.dev\n')
