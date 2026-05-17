@@ -5,6 +5,7 @@ from .state import State
 from ..probes import ProbeResult
 
 WINDOW_SECONDS = 5 * 3600
+RESET_CORRECTION_SECONDS = -360
 
 
 @dataclass(frozen=True)
@@ -20,7 +21,10 @@ class AlertDecision:
     reset_at: int     # epoch seconds
 
 
-def replay_windows(timestamps: tuple[float, ...]) -> Optional[LatestWindow]:
+def replay_windows(
+    timestamps: tuple[float, ...],
+    correction: Optional[float] = None,
+) -> Optional[LatestWindow]:
     """Full Replay: scan all timestamps left-to-right, opening a new 5h window
     every time `ts >= current_reset`. Returns the LATEST window after replay,
     or None if there are no timestamps.
@@ -30,9 +34,13 @@ def replay_windows(timestamps: tuple[float, ...]) -> Optional[LatestWindow]:
     drifted into the future, every historical timestamp was filtered out and
     alerts silently stopped. Full Replay makes that failure mode structurally
     impossible.
+
+    The correction parameter adjusts computed reset time to account for
+    consistent drift between local log timestamps and the actual server window.
     """
     if not timestamps:
         return None
+    actual_correction = correction if correction is not None else RESET_CORRECTION_SECONDS
     sorted_ts = sorted(timestamps)
     start = sorted_ts[0]
     reset = start + WINDOW_SECONDS
@@ -44,7 +52,7 @@ def replay_windows(timestamps: tuple[float, ...]) -> Optional[LatestWindow]:
             count = 1
         else:
             count += 1
-    return LatestWindow(start=start, reset=reset, count=count)
+    return LatestWindow(start=start, reset=reset + actual_correction, count=count)
 
 
 def decide_alerts(
