@@ -12,7 +12,8 @@ def _iso_to_epoch(ts: str) -> float:
 
 
 def scan_claude(*, app_dir: Path, cli_dir: Path, costs_file: Path, now: float, window_seconds: int) -> ProbeResult:
-    window_start = now - window_seconds
+    # Scan 2x window so replay_windows can detect the previous window boundary.
+    window_start = now - 2 * window_seconds
     out: list[float] = []
 
     # 1. Mac App session caches.
@@ -43,7 +44,7 @@ def scan_claude(*, app_dir: Path, cli_dir: Path, costs_file: Path, now: float, w
                         rec = json.loads(line)
                     except json.JSONDecodeError:
                         continue
-                    if rec.get("type") != "message":
+                    if rec.get("type") != "user":
                         continue
                     if (rec.get("message") or {}).get("role") != "user":
                         continue
@@ -59,11 +60,11 @@ def scan_claude(*, app_dir: Path, cli_dir: Path, costs_file: Path, now: float, w
         except OSError:
             continue
 
-    # 3. costs.jsonl (extra time-source, last 20 lines).
+    # 3. costs.jsonl (extra time-source, full scan).
     try:
         if costs_file.exists() and os.path.getmtime(costs_file) >= window_start:
             with open(costs_file, encoding="utf-8") as f:
-                lines = f.readlines()[-20:]
+                lines = f.readlines()
             for line in lines:
                 line = line.strip()
                 if not line:
