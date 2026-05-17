@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Optional
 
 from ..config.loader import ConfigError, load_config
-from ..i18n import set_locale
+from ..i18n import set_locale, t
 from ..notifiers import Alert
 from ..notifiers.cloudflare_relay import CloudflareRelayNotifier
 from ..notifiers.macos_native import MacOSNativeNotifier
@@ -33,8 +33,8 @@ def send_test(*, config_path: Path, env_path: Path, backend: Optional[str]) -> i
         return 3
 
     alert = Alert(
-        title="QuotaMonitor test",
-        body="If you see this, your notifier is wired correctly.",
+        title=t("notify_test.title"),
+        body=t("notify_test.body"),
         reset_at=0,
         source="test",
     )

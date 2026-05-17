@@ -40,6 +40,7 @@ MESSAGES = {
     "wizard.step3.fallback.options": ["macos_native", "(none)"],
     "wizard.complete": "Setup complete. First scan in ~5 minutes.",
     "wizard.test_scheduled": "Test message scheduled — it will arrive via Telegram in ~5 seconds.",
+    "wizard.cf_test_message": "QuotaMonitor setup test — Cloudflare Queue delivery is working!",
     "wizard.keepalive.warning": (
         "ℹ️ Keepalive sends automated requests to Claude Code to keep your 5-hour quota window active.\n"
         "⚠️ Risks & Limitations:\n"
@@ -76,6 +77,8 @@ MESSAGES = {
     ),
 
     "alert.suffix.estimated": " (estimated from local conversation logs)",
+    "notify_test.title": "QuotaMonitor test",
+    "notify_test.body": "If you see this, your notifier is wired correctly.",
 
     "log.probe_failed": "[warn] {source} probe failed: {error}",
     "log.state_corrupted": "[warn] state file corrupted ({error}); resetting to defaults",

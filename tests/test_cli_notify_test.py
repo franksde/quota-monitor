@@ -3,9 +3,9 @@ from unittest.mock import patch, MagicMock
 from quota_monitor.cli.notify_test import send_test
 
 
-def _write_minimal_config(tmp_path: Path) -> Path:
+def _write_minimal_config(tmp_path: Path, *, locale: str = "en") -> Path:
     cfg = tmp_path / "config.toml"
-    cfg.write_text('locale="en"\n[notifiers]\nprimary="telegram"\n[notifiers.telegram]\n')
+    cfg.write_text(f'locale="{locale}"\n[notifiers]\nprimary="telegram"\n[notifiers.telegram]\n')
     env = tmp_path / ".env"
     env.write_text("TELEGRAM_BOT_TOKEN=tok\nTELEGRAM_CHAT_ID=cid\n")
     return cfg, env
@@ -19,6 +19,18 @@ def test_sends_test_alert_via_primary(tmp_path):
         rc = send_test(config_path=cfg, env_path=env, backend=None)
     assert rc == 0
     instance.send.assert_called_once()
+
+
+def test_sends_test_alert_in_configured_locale(tmp_path):
+    cfg, env = _write_minimal_config(tmp_path, locale="zh")
+    with patch("quota_monitor.cli.notify_test.TelegramNotifier") as TG:
+        instance = MagicMock(); instance.name = "telegram"
+        TG.return_value = instance
+        rc = send_test(config_path=cfg, env_path=env, backend=None)
+    assert rc == 0
+    alert = instance.send.call_args.args[0]
+    assert "测试" in alert.title
+    assert "通知渠道" in alert.body
 
 
 def test_send_test_specific_backend(tmp_path):

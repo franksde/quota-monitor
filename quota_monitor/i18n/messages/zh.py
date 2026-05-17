@@ -40,6 +40,7 @@ MESSAGES = {
     "wizard.step3.fallback.options": ["macos_native (本地通知)", "(无)"],
     "wizard.complete": "配置完成。约 5 分钟后首次扫描。",
     "wizard.test_scheduled": "测试消息已调度 — 约 5 秒后通过 Telegram 送达。",
+    "wizard.cf_test_message": "QuotaMonitor setup 测试 — Cloudflare Queue 投递正常。",
     "wizard.keepalive.warning": (
         "ℹ️ 防休眠 (Keepalive) 的作用是自动发送请求，为你保活 Claude Code 的 5 小时额度窗口。\n"
         "⚠️ 风险与限制:\n"
@@ -73,6 +74,8 @@ MESSAGES = {
     ),
 
     "alert.suffix.estimated": "（根据本地对话记录时间估算）",
+    "notify_test.title": "QuotaMonitor 测试",
+    "notify_test.body": "如果你看到这条消息，说明通知渠道已正确连通。",
 
     "log.probe_failed": "[warn] {source} probe failed: {error}",
     "log.state_corrupted": "[warn] 状态文件损坏 ({error});重置为默认",

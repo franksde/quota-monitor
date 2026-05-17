@@ -285,7 +285,7 @@ def run_wizard(
         url = answers["cloudflare_webhook_url"]
         payload = json.dumps({
             "reset_time_epoch": int(time.time()) + 5,
-            "message": "QuotaMonitor setup test — CF Queue delivery is working!",
+            "message": t("wizard.cf_test_message"),
         }).encode()
         try:
             req = urllib.request.Request(url, data=payload, headers={

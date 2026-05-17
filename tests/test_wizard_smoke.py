@@ -52,6 +52,39 @@ def test_wizard_sends_requested_test_notification(tmp_path):
     send_test.assert_called_once_with(config_path=config_path, env_path=env_path, backend="telegram")
 
 
+def test_wizard_schedules_cf_setup_test_in_configured_locale(tmp_path):
+    answers = json.loads((FIXTURES / "wizard_answers_basic.json").read_text())
+    answers.update({
+        "locale": "zh",
+        "primary": "cloudflare_relay",
+        "cloudflare_webhook_url": "https://relay.example.com/api/schedule",
+    })
+    config_path = tmp_path / "config.toml"
+    env_path = tmp_path / ".env"
+    requests = []
+
+    def fake_urlopen(req, timeout):
+        requests.append(req)
+        class Response:
+            def close(self): pass
+        return Response()
+
+    with patch("quota_monitor.cli.setup.preflight_check", return_value=([], [])), \
+         patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        rc = run_wizard(
+            answers=answers,
+            config_path=config_path,
+            env_path=env_path,
+            data_dir=tmp_path,
+            non_interactive=True,
+        )
+    assert rc == 0
+    assert requests
+    payload = json.loads(requests[0].data.decode())
+    assert "测试" in payload["message"]
+    assert "Cloudflare" in payload["message"]
+
+
 def test_interactive_wizard_reuses_existing_telegram_env():
     with patch("quota_monitor.cli.setup.ask_choice", side_effect=[0, 0, 0, 2]), \
          patch("quota_monitor.cli.setup.ask_yes_no", side_effect=[True, False, True, False, False]), \
