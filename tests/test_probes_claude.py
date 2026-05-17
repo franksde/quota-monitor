@@ -49,3 +49,21 @@ def test_returns_sorted_unique_timestamps(tmp_path):
         window_seconds=10 * 3600,
     )
     assert list(result.timestamps) == sorted(result.timestamps)
+
+
+def test_ignores_costs_jsonl(tmp_path):
+    """costs.jsonl is not a reliable activity source: for cc-switch / third-party
+    users every line is a `model=unknown, tokens=0` placeholder. Even when populated
+    it duplicates info already in cli jsonl. The probe must not read it.
+    """
+    costs = tmp_path / "costs.jsonl"
+    # An obviously real-looking timestamp inside the scan window.
+    costs.write_text('{"timestamp":"2026-05-15T11:30:00Z","input_tokens":42,"output_tokens":7}\n')
+    result = scan_claude(
+        app_dir=tmp_path,
+        cli_dir=tmp_path,
+        costs_file=costs,
+        now=1747312000.0,  # ~12:26 on 2026-05-15
+        window_seconds=5 * 3600,
+    )
+    assert result.timestamps == ()

@@ -12,6 +12,12 @@ def _iso_to_epoch(ts: str) -> float:
 
 
 def scan_claude(*, app_dir: Path, cli_dir: Path, costs_file: Path, now: float, window_seconds: int) -> ProbeResult:
+    # costs_file is accepted for signature compatibility but intentionally unused.
+    # It only contains `model=unknown, tokens=0` placeholders for cc-switch /
+    # third-party users (100% of entries in observed installs), which polluted
+    # replay_windows with phantom activity and shifted reset times by up to 30 min.
+    del costs_file
+
     # Scan 2x window so replay_windows can detect the previous window boundary.
     window_start = now - 2 * window_seconds
     out: list[float] = []
@@ -59,31 +65,6 @@ def scan_claude(*, app_dir: Path, cli_dir: Path, costs_file: Path, now: float, w
                         out.append(ts)
         except OSError:
             continue
-
-    # 3. costs.jsonl (extra time-source, full scan).
-    try:
-        if costs_file.exists() and os.path.getmtime(costs_file) >= window_start:
-            with open(costs_file, encoding="utf-8") as f:
-                lines = f.readlines()
-            for line in lines:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    rec = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                ts_str = rec.get("timestamp")
-                if not ts_str:
-                    continue
-                try:
-                    ts = _iso_to_epoch(ts_str)
-                except ValueError:
-                    continue
-                if ts >= window_start:
-                    out.append(ts)
-    except OSError:
-        pass
 
     out.sort()
     return ProbeResult(source="claude", timestamps=tuple(out))
