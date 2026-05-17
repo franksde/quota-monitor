@@ -73,4 +73,6 @@ MESSAGES = {
     "log.probe_failed": "[warn] {source} probe failed: {error}",
     "log.state_corrupted": "[warn] state file corrupted ({error}); resetting to defaults",
     "log.keepalive_fired": "[info] keepalive sent: {phrase}",
+    "log.statusline_healed": "[info] statusLine was overwritten externally; wrapper reinstalled",
+    "log.statusline_heal_failed": "[warn] statusLine self-heal failed: {error}",
 }

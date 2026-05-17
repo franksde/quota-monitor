@@ -70,4 +70,6 @@ MESSAGES = {
     "log.probe_failed": "[warn] {source} probe failed: {error}",
     "log.state_corrupted": "[warn] 状态文件损坏 ({error});重置为默认",
     "log.keepalive_fired": "[info] keepalive 已发送:{phrase}",
+    "log.statusline_healed": "[info] statusLine 被外部覆盖，已自动重装 wrapper",
+    "log.statusline_heal_failed": "[warn] statusLine 自愈失败:{error}",
 }

@@ -19,6 +19,7 @@ from ..platform import paths as platform_paths
 from ..probes.claude import scan_claude
 from ..probes.codex import CodexAuthMissingError, scan_codex
 from ..probes.precise import read_precise
+from ..statusline.installer import ensure_wrapper_installed
 
 
 def _build_notifier(name: str, cfg, secrets: dict[str, str]) -> Optional[Notifier]:
@@ -68,6 +69,18 @@ def run_once(
 
     set_locale(cfg.locale)
     state = load_state(state_path)
+
+    # Self-heal: external tools (cc-switch swaps a full settings.json snapshot
+    # per provider) can drop or mangle our statusLine entry. If a backup
+    # exists the user wanted wrapper installed; restore it silently.
+    try:
+        if ensure_wrapper_installed(
+            settings_path=platform_paths.claude_settings_file(),
+            backup_path=platform_paths.statusline_original(),
+        ):
+            print(t("log.statusline_healed"), file=sys.stderr)
+    except Exception as e:
+        print(t("log.statusline_heal_failed", error=e), file=sys.stderr)
 
     claude_result = None
     if cfg.probes.claude.enabled:

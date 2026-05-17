@@ -95,4 +95,56 @@ def uninstall_wrapper(*, settings_path: Path, backup_path: Path) -> bool:
         settings["statusLine"] = original
 
     _atomic_write_json(settings_path, settings)
+    # Delete the backup so `ensure_wrapper_installed` doesn't treat the
+    # uninstall as "user accidentally lost the wrapper, please reinstall".
+    try:
+        backup_path.unlink()
+    except OSError:
+        pass
+    return True
+
+
+def ensure_wrapper_installed(*, settings_path: Path, backup_path: Path) -> bool:
+    """Self-heal: if a backup exists (the user installed wrapper at some point)
+    but settings.json no longer has wrapper as statusLine, reinstall wrapper.
+
+    Triggered by every `quota-monitor run`. The motivating scenario: cc-switch
+    stores a full snapshot of settings.json per provider; switching providers
+    overwrites the live file, often dropping or mangling the statusLine key
+    that our installer wrote.
+
+    Returns True iff settings was modified.
+
+    Importantly, this does NOT update the backup. The current statusLine may
+    be a transient foreign-tool state (e.g. cc-switch's residual
+    `{"padding": 2}` with no command) — recording it as the new "original"
+    would corrupt the user's real uninstall target.
+    """
+    if not backup_path.exists():
+        return False
+    state = detect_existing_statusline(settings_path)
+    if state == StatusLineState.OUR_WRAPPER:
+        return False
+
+    if settings_path.exists():
+        try:
+            settings = json.loads(settings_path.read_text())
+        except (json.JSONDecodeError, OSError):
+            settings = {}
+    else:
+        settings = {}
+
+    new_statusline = {
+        "type": "command",
+        "command": "python3 -m quota_monitor.statusline",
+        "refreshInterval": 5,
+    }
+    current = settings.get("statusLine")
+    if isinstance(current, dict):
+        for key in ("padding", "hideVimModeIndicator", "refreshInterval"):
+            if key in current:
+                new_statusline[key] = current[key]
+
+    settings["statusLine"] = new_statusline
+    _atomic_write_json(settings_path, settings)
     return True
