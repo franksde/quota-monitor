@@ -82,7 +82,7 @@ quota-monitor statusline uninstall
 - **使用第三方模型路由（例如 `cc switch`）**。这些调用会写本地 jsonl，但实际上根本没发到 Anthropic，不会影响 Anthropic 5 小时窗口的起点；反过来，真正启动 Anthropic 当前窗口的那条请求可能本地一条记录都没有。
 - **同时使用 claude.ai 网页聊天**。网页消息计入同一 5 小时配额，但不会写任何本地文件。
 
-这两种情况下，probe 只能猜，偏差可能高达几个小时。补救办法是装好 statusLine：它会把 Claude Code 自带的精确 rate-limit 信息缓存下来，probe 优先使用这个精确值。
+这两种情况下，probe 只能猜。一台真实 cc-switch 机器上的实测偏差：**连续使用时大约偏 60 分钟；刚刚过完一次真实 reset 之后偏差可达 ~4 小时**（算法看不到 reset 事件，只会沿用已经过期的旧窗口继续推算）。补救办法是装好 statusLine：它会把 Claude Code 自带的精确 rate-limit 信息缓存下来，probe 优先使用这个精确值。
 
 ## 快速开始（手动）
 

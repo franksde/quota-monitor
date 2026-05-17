@@ -83,7 +83,7 @@ The estimated path infers the 5-hour window boundary from local `~/.claude/proje
 - **You use a third-party model router (e.g. `cc switch`).** Those calls write local jsonl entries that look like API calls, but they never reach Anthropic and don't shift Anthropic's 5-hour window. Conversely, the call that actually *started* Anthropic's current window may never appear locally.
 - **You also use claude.ai web chat.** Web messages count toward the same 5-hour quota but are not written to any local file.
 
-In either case, the probe is guessing. Expect drift up to a few hours. The fix is to keep statusLine installed: it caches the precise reset time from Claude Code's own rate-limit headers and the probe trusts that when available.
+In either case, the probe is guessing. Measured drift on a real cc-switch install: **roughly 60 minutes off when activity is continuous; up to ~4 hours off shortly after the actual server-side reset** (replay can't see the reset event, so it keeps extending an already-stale window). The fix is to keep statusLine installed: it caches the precise reset time from Claude Code's own rate-limit headers and the probe trusts that when available.
 
 ## Quickstart (manual)
 
