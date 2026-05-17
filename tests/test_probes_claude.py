@@ -51,6 +51,32 @@ def test_returns_sorted_unique_timestamps(tmp_path):
     assert list(result.timestamps) == sorted(result.timestamps)
 
 
+def test_counts_tool_result_wrappers(tmp_path):
+    """Claude Code stores every tool_result as `type=user, role=user` with
+    `content=[{type:tool_result, ...}]`. These are NOT user-typed input, but
+    each one IS an independent API call against Anthropic that consumes quota
+    and contributes to the 5h window boundary. The probe must keep them.
+    Filtering them out (an earlier attempt) shifted the computed reset by
+    ~13 min in the wrong direction.
+    """
+    cli = tmp_path / "projects" / "x"
+    cli.mkdir(parents=True)
+    f = cli / "session.jsonl"
+    f.write_text(
+        '{"type":"user","message":{"role":"user","content":"hello"},"timestamp":"2026-05-15T12:00:00Z"}\n'
+        '{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"x","content":"ok"}]},"timestamp":"2026-05-15T12:00:05Z"}\n'
+    )
+    result = scan_claude(
+        app_dir=tmp_path / "nope",
+        cli_dir=tmp_path,
+        costs_file=tmp_path / "nope.jsonl",
+        now=1778850000.0,
+        window_seconds=5 * 3600,
+    )
+    assert 1778846400.0 in result.timestamps   # real input
+    assert 1778846405.0 in result.timestamps   # tool_result also counts
+
+
 def test_ignores_costs_jsonl(tmp_path):
     """costs.jsonl is not a reliable activity source: for cc-switch / third-party
     users every line is a `model=unknown, tokens=0` placeholder. Even when populated
