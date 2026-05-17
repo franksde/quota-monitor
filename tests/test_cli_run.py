@@ -574,6 +574,7 @@ def test_cf_schedule_id_is_stable_across_boundary_jitter():
             state=default_state(),
             precise=precise,
             claude_result=None,
+            codex_result=None,
             now=now,
             primary=primary,
             dry_run=False,
@@ -657,7 +658,7 @@ def test_cf_mode_schedules_when_only_jsonl_turns_hit(tmp_path):
     assert sent_alert.reset_at > now  # future
 
 
-def test_cf_mode_still_sends_codex_alert_via_telegram(tmp_path):
+def test_cf_mode_schedules_codex_alert_via_cf(tmp_path):
     cfg_path = _write_cf_with_codex_config(tmp_path)
     env_path = _write_env(tmp_path)
     state_path = tmp_path / "state.json"
@@ -696,10 +697,19 @@ def test_cf_mode_still_sends_codex_alert_via_telegram(tmp_path):
         )
 
     assert rc == 0
-    cf_instance.send.assert_called_once()
-    tg_instance.send.assert_called_once()
-    sent_codex_alert = tg_instance.send.call_args.args[0]
-    assert sent_codex_alert.source == "codex"
+    # CF should be called TWICE: once for Claude, once for Codex.
+    assert cf_instance.send.call_count == 2
+    # Telegram should NOT be called at all for polling in CF mode.
+    tg_instance.send.assert_not_called()
+    
+    # Verify the alerts sent to CF
+    alerts = [call.args[0] for call in cf_instance.send.call_args_list]
+    sources = [a.source for a in alerts]
+    assert "claude" in sources
+    assert "codex" in sources
+    
+    codex_alert = next(a for a in alerts if a.source == "codex")
+    assert codex_alert.reset_at == future_reset + 1200
 
 
 def test_cf_mode_skips_when_no_data_at_all(tmp_path):

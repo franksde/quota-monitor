@@ -91,7 +91,7 @@ def _best_known_future_reset(precise, claude_state, claude_result, now: float) -
 
 
 def _maybe_schedule_cf_recovered_alert(
-    *, cfg, state, precise, claude_result, now: float, primary,
+    *, cfg, state, precise, claude_result, codex_result, now: float, primary,
     dry_run: bool,
 ):
     """CF Queue mode: schedule the 'recovered' notification at threshold-
@@ -106,49 +106,79 @@ def _maybe_schedule_cf_recovered_alert(
 
     Returns possibly-updated state.
     """
-    threshold_hit = (
+    from dataclasses import replace
+    from ..core.window import WINDOW_SECONDS
+    from datetime import datetime
+
+    new_state = state
+
+    # --- CLAUDE ---
+    claude_threshold_hit = (
         (precise is not None and precise.five_hour_pct >= cfg.probes.claude.precise_threshold_percent)
         or (claude_result is not None and len(claude_result.timestamps) >= cfg.probes.claude.threshold_turns)
     )
-    if not threshold_hit:
-        return state
+    if claude_threshold_hit:
+        best_reset = _best_known_future_reset(precise, new_state.claude, claude_result, now)
+        if best_reset is not None and new_state.claude.scheduled_alert_reset_at != int(best_reset):
+            if dry_run:
+                print(f"[dry-run] would CF-schedule: source=claude reset_at={int(best_reset)}")
+                new_state = replace(new_state, claude=replace(
+                    new_state.claude,
+                    scheduled_alert_reset_at=int(best_reset),
+                ))
+            else:
+                reset_human = datetime.fromtimestamp(best_reset).strftime("%Y-%m-%d %H:%M:%S")
+                schedule_id = f"claude-{int((best_reset + WINDOW_SECONDS // 2) // WINDOW_SECONDS)}"
+                alert = Alert(
+                    title=t("alert.title.recovered", source="Claude"),
+                    body=t("alert.body.recovered", source="Claude", reset_at_human=reset_human),
+                    reset_at=int(best_reset),
+                    source="claude",
+                    schedule_id=schedule_id,
+                )
+                try:
+                    if primary: primary.send(alert)
+                    new_state = replace(new_state, claude=replace(
+                        new_state.claude,
+                        scheduled_alert_reset_at=int(best_reset),
+                    ))
+                except Exception as e:
+                    print(f"[warn] CF schedule failed for Claude: {e}", file=sys.stderr)
 
-    best_reset = _best_known_future_reset(precise, state.claude, claude_result, now)
-    if best_reset is None:
-        return state
+    # --- CODEX ---
+    if codex_result is not None:
+        used_percent = int(codex_result.extra.get("used_percent", 0) or 0)
+        reset_at = codex_result.extra.get("reset_at")
+        
+        if reset_at is not None and reset_at > now and used_percent >= cfg.probes.codex.threshold_percent:
+            if new_state.codex.scheduled_alert_reset_at != int(reset_at):
+                if dry_run:
+                    print(f"[dry-run] would CF-schedule: source=codex reset_at={int(reset_at)}")
+                    new_state = replace(new_state, codex=replace(
+                        new_state.codex,
+                        scheduled_alert_reset_at=int(reset_at),
+                    ))
+                else:
+                    reset_human = datetime.fromtimestamp(reset_at).strftime("%Y-%m-%d %H:%M:%S")
+                    # For Codex, the reset is fixed per API response. We can use it directly as the bucket.
+                    schedule_id = f"codex-{int(reset_at)}"
+                    alert = Alert(
+                        title=t("alert.title.recovered", source="Codex"),
+                        body=t("alert.body.recovered", source="Codex", reset_at_human=reset_human),
+                        reset_at=int(reset_at),
+                        source="codex",
+                        schedule_id=schedule_id,
+                    )
+                    try:
+                        if primary: primary.send(alert)
+                        new_state = replace(new_state, codex=replace(
+                            new_state.codex,
+                            scheduled_alert_reset_at=int(reset_at),
+                        ))
+                    except Exception as e:
+                        print(f"[warn] CF schedule failed for Codex: {e}", file=sys.stderr)
 
-    if state.claude.scheduled_alert_reset_at == int(best_reset):
-        return state  # already queued this reset
-
-    if dry_run:
-        print(f"[dry-run] would CF-schedule: source=claude reset_at={int(best_reset)}")
-        return state
-
-    reset_human = datetime.fromtimestamp(best_reset).strftime("%Y-%m-%d %H:%M:%S")
-    # Stable id per 5h window bucket. If best_reset is later updated within
-    # the same logical window (precise data refines an earlier estimate),
-    # the worker's KV tombstone treats the newer schedule as authoritative
-    # and drops the older queued delivery — the user only gets one
-    # notification with the most recent reset time.
-    from ..core.window import WINDOW_SECONDS
-    schedule_id = f"claude-{int((best_reset + WINDOW_SECONDS // 2) // WINDOW_SECONDS)}"
-    alert = Alert(
-        title=t("alert.title.recovered", source="Claude"),
-        body=t("alert.body.recovered", source="Claude", reset_at_human=reset_human),
-        reset_at=int(best_reset),
-        source="claude",
-        schedule_id=schedule_id,
-    )
-    try:
-        primary.send(alert)
-    except Exception as e:
-        print(f"[warn] CF schedule failed: {e}", file=sys.stderr)
-        return state
-
-    return replace(state, claude=replace(
-        state.claude,
-        scheduled_alert_reset_at=int(best_reset),
-    ))
+    return new_state
 
 
 def _codex_fetch_hint(state: CodexState) -> Optional[FetchHint]:
@@ -290,7 +320,7 @@ def run_once(
         if dry_run:
             new_state = _maybe_schedule_cf_recovered_alert(
                 cfg=cfg, state=new_state, precise=precise,
-                claude_result=claude_result, now=now, primary=None, dry_run=True,
+                claude_result=claude_result, codex_result=codex_result, now=now, primary=None, dry_run=True,
             )
         else:
             cf_primary = _build_notifier(cfg.notifiers.primary, cfg, cfg.secrets)
@@ -299,20 +329,21 @@ def run_once(
                 return 3
             new_state = _maybe_schedule_cf_recovered_alert(
                 cfg=cfg, state=new_state, precise=precise,
-                claude_result=claude_result, now=now, primary=cf_primary, dry_run=False,
+                claude_result=claude_result, codex_result=codex_result, now=now, primary=cf_primary, dry_run=False,
             )
 
-    # In CF Queue mode Claude recovery is already handled above by delayed
-    # scheduling. Keep the polling alert path alive for Codex only.
+    # In CF Queue mode, recovery is already handled above by delayed
+    # scheduling for both Claude and Codex. Skip polling alerts for both.
     alert_claude_window = None if is_cf_mode else claude_window
+    alert_codex_result = None if is_cf_mode else codex_result
 
     # Polling mode (TG-direct, macOS native, etc.): fire at reset_at via
     # the at-reset-recovered model. No way to defer with these notifiers,
     # so we must catch the reset moment in a LaunchAgent tick.
     decisions = decide_alerts(
-        state=state,
+        state=new_state,  # Use new_state here to ensure we don't ignore updates
         claude_window=alert_claude_window,
-        codex=codex_result,
+        codex=alert_codex_result,
         now=now,
         claude_threshold=cfg.probes.claude.threshold_turns,
         codex_threshold_percent=cfg.probes.codex.threshold_percent,

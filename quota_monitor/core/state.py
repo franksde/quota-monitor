@@ -32,6 +32,7 @@ class CodexState:
     last_fetch_at: int = 0
     last_used_percent: int = 0
     last_reset_at: int = 0
+    scheduled_alert_reset_at: int = 0
 
 
 @dataclass(frozen=True)
@@ -79,6 +80,7 @@ def load_state(path: Path) -> State:
                            "last_fetch_at",
                            "last_used_percent",
                            "last_reset_at",
+                           "scheduled_alert_reset_at",
                        }}
         return State(
             schema_version=raw.get("schema_version", SCHEMA_VERSION),
