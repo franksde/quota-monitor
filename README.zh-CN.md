@@ -10,27 +10,35 @@
 
 ### 第 1 步：把这段 prompt 发给你的 AI Agent
 
-> 我想在 macOS 上安装 QuotaMonitor（https://github.com/<repo>）。
-> 请阅读它的 README，把所有前置条件准备好，让 setup 向导可以从头到尾顺利跑完：
+> 我想在 macOS 上安装 `franksde/quota-monitor`（https://github.com/franksde/quota-monitor）。
+> 请先阅读项目 README。不要直接安装所有依赖；先向我说明安装选项，并问我想走哪种模式：
 >
-> 1. **Python ≥ 3.11**。如果没有，运行：`brew install python@3.12`
-> 2. **`claude` CLI** 在 PATH 中（Claude Code；只有我要启用 keepalive 时才需要）。
-> 3. **`tmux`** 在 PATH 中（只有我要启用 keepalive 时才需要）：
->    `brew install tmux`
-> 4. **Telegram bot**：通过 @BotFather 创建 bot，拿到 token 和 chat_id，
->    参考 `.env.example` 写入 `~/.quota-monitor/.env`。
-> 5. **Cloudflare relay**（开发者推荐开启）：
->    - `npm install -g wrangler`
->    - `wrangler login`（会打开浏览器，我来完成登录授权）
->    - 确认 `wrangler whoami` 能返回我的 Cloudflare 账号。
-> 6. **和我一起阅读 README 的风险部分**，再决定是否启用 keepalive。
-> 7. **确认调度方式**：LaunchAgent（默认）。
+> 1. **通知模式**
+>    - Telegram 直连：免费、简单，但只有在我的 Mac 能运行定时任务时才会通知。
+>    - macOS native：只能做本地备用通知；Mac 休眠或关机时收不到。
+>    - Cloudflare relay：可选的云端延迟 Telegram 通知。即使 Mac 休眠或关机，也能在 reset 时间收到通知；但需要 Cloudflare 账号、`wrangler login`，并多花几分钟配置。请告诉我正常个人使用是否免费、预计要多久。
+> 2. **Claude 精确追踪**
+>    - 解释 statusLine tracking：当 Claude Code 提供 rate-limit 数据时，可以获得更准确的 reset 时间，缓存只保存在本地。
+>    - 告诉我它可以包装已有 statusLine 工具，不改变原工具显示效果。
+> 3. **Keepalive**
+>    - 解释 keepalive 是可选功能，默认关闭；需要 `claude` CLI 和 `tmux`；macOS 休眠时无效；也可能和服务商使用政策冲突。
+>    - 必须先问我，再决定是否启用。
+> 4. **前置依赖**
+>    - Python >= 3.11 或 Homebrew Python。
+>    - 如果选择 Telegram 或 Cloudflare relay，需要 Telegram bot token 和 chat_id。
+>    - 只有选择 Cloudflare relay 时，才需要 Cloudflare 账号和 `wrangler`。先问我是否已有 Cloudflare 账号；如果没有，说明注册要求、预计耗时和正常个人使用下的免费额度预期，再继续。
+>    - 只有需要安装 `wrangler` 时，才需要 Node.js/npm。
+>    - 只有选择 keepalive 时，才需要 `claude` CLI 和 `tmux`。
+>    - macOS 上推荐使用 LaunchAgent 做定时调度。
 >
-> 前置条件准备好后，告诉我运行：
->     python3.11 -m quota_monitor setup
+> 每个依赖都要告诉我为什么需要、是否可以跳过。
+> 不要在我确认模式之前运行 `brew`、`npm` 或 `wrangler` 命令。
+> 等我确认模式后，只安装该模式真正需要的依赖，说明你改了什么，
+> 然后告诉我运行：
+>     quota-monitor setup
 
 ### 第 2 步：运行向导
-    python3.11 -m quota_monitor setup
+    quota-monitor setup
 
 ### 安全提醒
 如果你把 Cloudflare API token 交给 AI agent，请使用 **scoped token**（仅 Workers + KV），不要使用 Global API Key。用完后建议撤销。

@@ -12,28 +12,36 @@ prepare the outside world before you run the wizard.
 
 ### Step 1 — Paste this prompt to your AI agent:
 
-> I want to install QuotaMonitor (https://github.com/<repo>) on macOS.
-> Read its README and prepare ALL prerequisites so the setup wizard
-> runs from start to finish without interruption:
+> I want to install `franksde/quota-monitor` from https://github.com/franksde/quota-monitor on macOS.
+> Read the project README first. Before installing anything, explain the setup
+> choices to me and ask which path I want:
 >
-> 1. **Python ≥ 3.11**.  If missing: `brew install python@3.12`
-> 2. **`claude` CLI** in PATH (Claude Code; only if I plan to enable keepalive).
-> 3. **`tmux`** in PATH (only if I plan to enable keepalive):
->    `brew install tmux`
-> 4. **Telegram bot**: create via @BotFather, get token + chat_id,
->    write them to `~/.quota-monitor/.env` using `.env.example`.
-> 5. **Cloudflare relay** (recommended if I'm a developer):
->    - `npm install -g wrangler`
->    - `wrangler login`  (opens browser; I'll authenticate)
->    - Confirm `wrangler whoami` returns my account.
-> 6. **Read README §Risks** with me — decide if I enable keepalive.
-> 7. **Decide** schedule install: LaunchAgent (default).
+> 1. **Notification mode**
+>    - Telegram direct: free and simple, but only works while my Mac can run the scheduled job.
+>    - macOS native: local fallback only; it cannot notify me when the Mac is asleep or off.
+>    - Cloudflare relay: optional cloud-delayed Telegram delivery. It keeps reset notifications working even if my Mac sleeps or shuts down, but it requires a Cloudflare account, `wrangler login`, and a few extra setup minutes. Tell me whether it is free for normal personal use and roughly how long it should take.
+> 2. **Precise Claude tracking**
+>    - Explain statusLine tracking: better reset times when Claude Code provides rate-limit data, with local-only cache files.
+>    - Tell me it can wrap an existing statusLine tool without changing its display.
+> 3. **Keepalive**
+>    - Explain that keepalive is optional, off by default, needs `claude` CLI and `tmux`, does not work while macOS sleeps, and may conflict with provider usage policies.
+>    - Ask explicitly before enabling it.
+> 4. **Prerequisites**
+>    - Python >= 3.11 or Homebrew Python.
+>    - Telegram bot token + chat_id if I choose Telegram or Cloudflare relay.
+>    - Cloudflare account + `wrangler` only if I choose Cloudflare relay. Ask whether I already have an account; if not, explain signup, expected time, and normal free-tier expectations before continuing.
+>    - Node.js/npm only if needed to install `wrangler`.
+>    - `claude` CLI and `tmux` only if I choose keepalive.
+>    - LaunchAgent is the recommended scheduler on macOS.
 >
-> When prerequisites are ready, tell me to run:
->     python3.11 -m quota_monitor setup
+> For every dependency, tell me why it is needed and whether it can be skipped.
+> Do not run `brew`, `npm`, or `wrangler` commands until I confirm the mode.
+> After I choose the mode, install only the dependencies required for that mode,
+> explain what you changed, and then tell me to run:
+>     quota-monitor setup
 
 ### Step 2 — Run the wizard
-    python3.11 -m quota_monitor setup
+    quota-monitor setup
 
 ### Security note
 If you give your AI agent a Cloudflare API token, use a **scoped 
