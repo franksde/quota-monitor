@@ -369,7 +369,7 @@ def run_once(
             # Pass the precise/HUD-sourced anchor so seamless picks the right
             # moment to fire — otherwise it falls back to replay_windows
             # estimate which can drift hours from reality.
-            known_reset = state.claude.last_known_good_reset_at or None
+            known_reset = new_state.claude.last_known_good_reset_at or None
             _, new_state = seamless_tick(
                 state=new_state,
                 now=now,

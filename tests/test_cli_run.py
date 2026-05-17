@@ -311,6 +311,37 @@ def test_run_once_runs_seamless_keepalive_when_enabled(tmp_path):
     assert rc == 0
 
 
+def test_run_once_passes_precise_reset_to_seamless_keepalive(tmp_path):
+    cfg_path = _write_keepalive_config(tmp_path)
+    env_path = _write_env(tmp_path)
+    state_path = tmp_path / "state.json"
+    now = 20_000.0
+    precise_reset = now + 800
+    precise = MagicMock(
+        five_hour_pct=20.0,
+        five_hour_resets_at=precise_reset,
+        seven_day_pct=30.0,
+        seven_day_resets_at=now + 86_400,
+        captured_at=now - 60,
+    )
+    fake = MagicMock(source="claude", timestamps=(now - 6 * 3600,), extra={})
+
+    with patch("quota_monitor.cli.run.ensure_wrapper_installed", return_value=False), \
+         patch("quota_monitor.cli.run.scan_claude", return_value=fake), \
+         patch("quota_monitor.cli.run.read_precise", return_value=precise), \
+         patch("quota_monitor.keepalive.seamless.seamless_tick", return_value=(MagicMock(), default_state())) as tick:
+        rc = run_once(
+            config_path=cfg_path,
+            env_path=env_path,
+            state_path=state_path,
+            now=now,
+            dry_run=False,
+        )
+
+    assert rc == 0
+    assert tick.call_args.kwargs["known_reset_at"] == precise_reset
+
+
 def test_run_once_returns_nonzero_when_config_missing(tmp_path):
     rc = run_once(
         config_path=tmp_path / "nope.toml",
