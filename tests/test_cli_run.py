@@ -2,7 +2,7 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 import json
 from quota_monitor.cli.run import run_once
-from quota_monitor.core.window import RESET_CORRECTION_SECONDS
+from quota_monitor.core.window import WINDOW_SECONDS, RESET_CORRECTION_SECONDS
 
 
 def _write_config(tmp_path: Path, *, precise_threshold_percent: int = 30) -> Path:
@@ -76,7 +76,7 @@ def test_run_once_writes_alerted_state_on_success(tmp_path):
     assert rc == 0
     tg_instance.send.assert_called_once()
     saved = json.loads(state_path.read_text())
-    assert saved["claude"]["alerted_for_reset"] == 1000 + 5 * 3600 + RESET_CORRECTION_SECONDS
+    assert saved["claude"]["alerted_for_reset"] == 1000 + WINDOW_SECONDS + RESET_CORRECTION_SECONDS
     sent_alert = tg_instance.send.call_args.args[0]
     assert "estimated from local conversation logs" in sent_alert.body
 
@@ -130,10 +130,11 @@ def test_run_once_does_not_realert_in_same_window(tmp_path):
     cfg_path = _write_config(tmp_path)
     env_path = _write_env(tmp_path)
     state_path = tmp_path / "state.json"
-    # Pre-seed state as if already alerted for this calibrated reset point.
+    # Pre-seed state as if already alerted for this reset point.
+    corrected_reset = 1000 + WINDOW_SECONDS + RESET_CORRECTION_SECONDS
     state_path.write_text(json.dumps({
         "schema_version": 1,
-        "claude": {"alerted_for_reset": 1000 + 5 * 3600 + RESET_CORRECTION_SECONDS},
+        "claude": {"alerted_for_reset": corrected_reset},
         "codex": {"alerted_for_reset": 0, "cooldown_until": 0},
         "keepalive": {"last_seamless_scheduled_for": 0, "phrase_pool_used_indices": [], "phrase_pool_size_at_init": 0},
     }))

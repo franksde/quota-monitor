@@ -21,7 +21,7 @@ def test_clustered_timestamps_same_window():
     ts = (1000.0, 1001.0, 1002.0, 1003.0, 1004.0)
     w = replay_windows(ts, correction=0.0)
     assert w.start == 1000.0
-    assert w.reset == 1000.0 + WINDOW_SECONDS
+    assert w.reset == 1000.0 + WINDOW_SECONDS + RESET_CORRECTION_SECONDS
     assert w.count == 5
 
 
@@ -31,7 +31,7 @@ def test_returns_latest_window_when_history_spans_multiple_windows():
     ts = (base, second_start, second_start + 10, second_start + 20)
     w = replay_windows(ts, correction=0.0)
     assert w.start == second_start
-    assert w.reset == second_start + WINDOW_SECONDS
+    assert w.reset == second_start + WINDOW_SECONDS + RESET_CORRECTION_SECONDS
     assert w.count == 3
 
 
@@ -51,8 +51,8 @@ def test_three_consecutive_windows_returns_third():
     assert w.count == 3
 
 
-def test_default_correction_is_negative_360():
-    assert RESET_CORRECTION_SECONDS == -360
+def test_default_correction_is_negative_300():
+    assert RESET_CORRECTION_SECONDS == -300
 
 
 def test_replay_windows_applies_default_correction():
@@ -96,19 +96,21 @@ def test_regression_future_reset_in_state_does_not_silence_alerts():
 
 def test_decide_emits_claude_alert_when_threshold_met():
     state = default_state()
-    w = LatestWindow(start=1000.0, reset=1000.0 + WINDOW_SECONDS, count=5)
+    reset = 1000.0 + WINDOW_SECONDS + RESET_CORRECTION_SECONDS
+    w = LatestWindow(start=1000.0, reset=reset, count=5)
     decisions = decide_alerts(
         state=state, claude_window=w, codex=None, now=1010.0,
         claude_threshold=5, codex_threshold_percent=30,
     )
     assert len(decisions) == 1
     assert decisions[0].source == "claude"
-    assert decisions[0].reset_at == int(1000.0 + WINDOW_SECONDS)
+    assert decisions[0].reset_at == int(reset)
 
 
 def test_decide_skips_when_below_threshold():
     state = default_state()
-    w = LatestWindow(start=1000.0, reset=1000.0 + WINDOW_SECONDS, count=3)
+    reset = 1000.0 + WINDOW_SECONDS + RESET_CORRECTION_SECONDS
+    w = LatestWindow(start=1000.0, reset=reset, count=3)
     decisions = decide_alerts(
         state=state, claude_window=w, codex=None, now=1010.0,
         claude_threshold=5, codex_threshold_percent=30,
@@ -117,8 +119,9 @@ def test_decide_skips_when_below_threshold():
 
 
 def test_decide_suppresses_repeat_for_same_window():
-    state = State(claude=ClaudeState(alerted_for_reset=int(1000.0 + WINDOW_SECONDS)))
-    w = LatestWindow(start=1000.0, reset=1000.0 + WINDOW_SECONDS, count=6)
+    reset = 1000.0 + WINDOW_SECONDS + RESET_CORRECTION_SECONDS
+    state = State(claude=ClaudeState(alerted_for_reset=int(reset)))
+    w = LatestWindow(start=1000.0, reset=reset, count=6)
     decisions = decide_alerts(
         state=state, claude_window=w, codex=None, now=1010.0,
         claude_threshold=5, codex_threshold_percent=30,
@@ -128,9 +131,10 @@ def test_decide_suppresses_repeat_for_same_window():
 
 def test_decide_skips_when_window_already_in_past():
     state = default_state()
-    w = LatestWindow(start=1.0, reset=1.0 + WINDOW_SECONDS, count=6)
+    reset = 1.0 + WINDOW_SECONDS + RESET_CORRECTION_SECONDS
+    w = LatestWindow(start=1.0, reset=reset, count=6)
     decisions = decide_alerts(
-        state=state, claude_window=w, codex=None, now=1.0 + WINDOW_SECONDS + 10,
+        state=state, claude_window=w, codex=None, now=reset + 10,
         claude_threshold=5, codex_threshold_percent=30,
     )
     assert decisions == []

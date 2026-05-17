@@ -5,7 +5,8 @@ from .state import State
 from ..probes import ProbeResult
 
 WINDOW_SECONDS = 5 * 3600
-RESET_CORRECTION_SECONDS = -360
+# Local logs consistently lag ~5 min behind the official window start.
+RESET_CORRECTION_SECONDS = -5 * 60
 
 
 @dataclass(frozen=True)
