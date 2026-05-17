@@ -1,6 +1,4 @@
-> English | [简体中文](#)
-
-[切换语言: [English](README.md) | 中文]
+[English](README.md) | [简体中文](README.zh-CN.md)
 
 # QuotaMonitor
 

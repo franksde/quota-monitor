@@ -1,3 +1,5 @@
+[English](README.md) | [简体中文](README.zh-CN.md)
+
 # QuotaMonitor
 
 > Monitor Claude / Codex 5-hour quota windows and notify on reset. Zero-dependency Python, optional Cloudflare relay.
