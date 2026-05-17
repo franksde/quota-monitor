@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import datetime
 from quota_monitor.cli.status import show_status
 
 
@@ -24,4 +24,8 @@ def test_status_prints_last_alerted_reset(capsys, tmp_path):
     assert rc == 0
     out = capsys.readouterr().out
     assert "claude" in out.lower()
-    assert datetime.fromtimestamp(1747218000, tz=timezone.utc).strftime("%Y-%m-%d") in out
+    # Local-timezone format (no tz suffix) — the date part can differ from
+    # the UTC date when the user is far from UTC, so anchor on the local
+    # date rather than the UTC date.
+    assert datetime.fromtimestamp(1747218000).strftime("%Y-%m-%d") in out
+    assert " UTC" not in out

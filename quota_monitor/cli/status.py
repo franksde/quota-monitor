@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 from ..config.loader import ConfigError, load_config
@@ -9,7 +9,9 @@ from ..i18n import set_locale, t
 def _human(epoch: int) -> str:
     if epoch == 0:
         return "never"
-    return datetime.fromtimestamp(epoch, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    # Local timezone, no tz suffix — matches the alert body format and avoids
+    # asking the user to mentally convert UTC.
+    return datetime.fromtimestamp(epoch).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def show_status(*, state_path: Path, config_path: Path) -> int:

@@ -1,7 +1,7 @@
 import sys
 import shutil
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -40,8 +40,10 @@ def _build_notifier(name: str, cfg, secrets: dict[str, str]) -> Optional[Notifie
 
 def _alert_for(decision: AlertDecision, *, estimated: bool = False) -> Alert:
     label = "Claude" if decision.source == "claude" else "Codex"
-    reset_dt = datetime.fromtimestamp(decision.reset_at, tz=timezone.utc)
-    reset_human = reset_dt.strftime("%Y-%m-%d %H:%M:%S UTC")
+    # Display in the user's local timezone, no tz suffix. Most users open
+    # notifications on their own machine and just want to see "11:48", not
+    # "10:48 UTC" — the conversion overhead is real for non-tech audiences.
+    reset_human = datetime.fromtimestamp(decision.reset_at).strftime("%Y-%m-%d %H:%M:%S")
     body = t("alert.body.recovered", source=label, reset_at_human=reset_human)
     if estimated:
         body += t("alert.suffix.estimated")
