@@ -1,4 +1,3 @@
-import json
 import re
 import subprocess
 import sys
@@ -18,20 +17,6 @@ def _run_wrangler(args: list[str], *, cwd: Path, stdin: Optional[str] = None) ->
         return 127, "", "wrangler not found in PATH"
 
 
-def _get_existing_kv_id(relay_dir: Path, title: str) -> Optional[str]:
-    rc, out, err = _run_wrangler(["kv", "namespace", "list"], cwd=relay_dir)
-    if rc != 0:
-        return None
-    try:
-        namespaces = json.loads(out)
-        for ns in namespaces:
-            if ns.get("title") == title:
-                return ns.get("id")
-    except json.JSONDecodeError:
-        pass
-    return None
-
-
 def deploy_cf_relay(
     *,
     relay_dir: Path,
@@ -41,63 +26,17 @@ def deploy_cf_relay(
     from ._input import ask_choice, ask_string
     from ..i18n import t
 
-    kv_title = "ALERTS_KV"
-    kv_id = None
-    
-    print(t("wizard.step5.kv_create", title=kv_title))
-    rc, out, err = _run_wrangler(["kv", "namespace", "create", kv_title], cwd=relay_dir)
-    
-    if rc != 0 and "already exists" in err:
-        print(t("wizard.step5.kv_exists", title=kv_title))
-        idx = ask_choice(
-            t("wizard.step5.how_to_proceed"),
-            t("wizard.step5.kv_action.options"),
-            default=0
-        )
-        if idx == 0:
-            kv_id = _get_existing_kv_id(relay_dir, kv_title)
-            if not kv_id:
-                print(f"[error] Could not find ID for existing KV '{kv_title}'.", file=sys.stderr)
-                return None
-            print(f"  Reusing existing KV id = {kv_id}")
-        elif idx == 1:
-            new_title = ask_string(t("wizard.step5.kv_new_name"))
-            if not new_title:
-                return None
-            kv_title = new_title
-            rc, out, err = _run_wrangler(["kv", "namespace", "create", kv_title], cwd=relay_dir)
-            if rc != 0:
-                print(f"[error] kv namespace create failed: {err}", file=sys.stderr)
-                return None
-        else:
-            return None
-    elif rc != 0:
-        print(f"[error] kv namespace create failed: {err}", file=sys.stderr)
-        return None
-
-    if not kv_id:
-        try:
-            kv_id = json.loads(out).get("id")
-        except json.JSONDecodeError:
-            m = re.search(r'id\s*=\s*"([^"]+)"', out)
-            if m:
-                kv_id = m.group(1)
-        if not kv_id:
-            print(f"[error] could not parse KV id from wrangler output:\n{out}", file=sys.stderr)
-            return None
-        print(f"  Created KV id = {kv_id}")
-
-    # Worker name handling
     worker_name = "quota-monitor-relay"
     print(t("wizard.step5.worker_check", name=worker_name))
     rc, out, err = _run_wrangler(["worker", "list"], cwd=relay_dir)
     worker_exists = False
     if rc == 0:
         try:
+            import json
             workers = json.loads(out)
             if any(w.get("id") == worker_name for w in workers):
                 worker_exists = True
-        except json.JSONDecodeError:
+        except Exception:
             if worker_name in out:
                 worker_exists = True
 
@@ -115,11 +54,9 @@ def deploy_cf_relay(
         elif idx == 2:
             return None
 
-    # Write wrangler.toml
+    # Write wrangler.toml from template
     template = (relay_dir / "wrangler.toml.example").read_text()
-    toml = template.replace("REPLACE_ME", kv_id)
-    
-    # Update worker name if changed
+    toml = template
     if worker_name != "quota-monitor-relay":
         toml = re.sub(r'name\s*=\s*"[^"]+"', f'name = "{worker_name}"', toml)
     (relay_dir / "wrangler.toml").write_text(toml)
@@ -144,4 +81,3 @@ def deploy_cf_relay(
         print(f"[error] could not parse deploy URL from output:\n{out}", file=sys.stderr)
         return None
     return m.group(0)
-

@@ -2,9 +2,12 @@ name = "quota-monitor-relay"
 main = "src/worker.js"
 compatibility_date = "2025-01-01"
 
-[[kv_namespaces]]
-binding = "ALERTS_KV"
-id = "REPLACE_ME"
+[[queues.producers]]
+queue = "quota-monitor-alerts"
+binding = "ALERTS_QUEUE"
 
-[triggers]
-crons = ["*/3 * * * *"]
+[[queues.consumers]]
+queue = "quota-monitor-alerts"
+max_batch_size = 1
+max_retries = 3
+dead_letter_queue = ""

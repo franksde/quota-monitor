@@ -21,7 +21,7 @@ def test_clustered_timestamps_same_window():
     ts = (1000.0, 1001.0, 1002.0, 1003.0, 1004.0)
     w = replay_windows(ts, correction=0.0)
     assert w.start == 1000.0
-    assert w.reset == 1000.0 + WINDOW_SECONDS + RESET_CORRECTION_SECONDS
+    assert w.reset == 1000.0 + WINDOW_SECONDS
     assert w.count == 5
 
 
@@ -31,7 +31,7 @@ def test_returns_latest_window_when_history_spans_multiple_windows():
     ts = (base, second_start, second_start + 10, second_start + 20)
     w = replay_windows(ts, correction=0.0)
     assert w.start == second_start
-    assert w.reset == second_start + WINDOW_SECONDS + RESET_CORRECTION_SECONDS
+    assert w.reset == second_start + WINDOW_SECONDS
     assert w.count == 3
 
 

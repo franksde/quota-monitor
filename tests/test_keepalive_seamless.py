@@ -1,7 +1,7 @@
 from dataclasses import replace
 from unittest.mock import patch
 from quota_monitor.core.state import State, KeepaliveState
-from quota_monitor.core.window import WINDOW_SECONDS, RESET_CORRECTION_SECONDS
+from quota_monitor.core.window import WINDOW_SECONDS
 from quota_monitor.keepalive.seamless import seamless_tick, SeamlessDecision
 
 
@@ -26,10 +26,10 @@ def test_skip_outside_when_far_from_reset():
 
 
 def test_schedules_tmux_inside_trigger_window():
-    # Latest window opens at (now - WINDOW_SECONDS + 500): reset is now + 500 + correction
+    # Latest window opens at (now - WINDOW_SECONDS + 500): reset is now + 500
     now = 10_000.0
     ts = (now - WINDOW_SECONDS + 500,)
-    expected_reset = (now - WINDOW_SECONDS + 500) + WINDOW_SECONDS + RESET_CORRECTION_SECONDS
+    expected_reset = (now - WINDOW_SECONDS + 500) + WINDOW_SECONDS
     with patch("quota_monitor.keepalive.seamless.subprocess.run") as run:
         run.return_value.returncode = 0
         decision, new_state = seamless_tick(
@@ -46,7 +46,7 @@ def test_schedules_tmux_inside_trigger_window():
 def test_skip_already_scheduled_for_same_reset():
     now = 10_000.0
     ts = (now - WINDOW_SECONDS + 500,)
-    expected_reset = int((now - WINDOW_SECONDS + 500) + WINDOW_SECONDS + RESET_CORRECTION_SECONDS)
+    expected_reset = int((now - WINDOW_SECONDS + 500) + WINDOW_SECONDS)
     state = replace(State(), keepalive=KeepaliveState(last_seamless_scheduled_for=expected_reset))
     with patch("quota_monitor.keepalive.seamless.subprocess.run") as run:
         decision, _ = seamless_tick(
