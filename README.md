@@ -104,6 +104,8 @@ Install the LaunchAgent through `python3.11 -m quota_monitor setup`, or use the 
 
 QuotaMonitor scans local Claude activity logs and Codex usage metadata, derives the current quota window, and sends a notification when a reset should be actionable. It keeps only small state markers such as "already alerted for this reset", never conversation content.
 
+Codex usage fetches are self-throttling: request frequency adapts to distance from the alert threshold, backing off to 10-20 minutes when usage is low and reusing cached data after the threshold is reached until the current window resets.
+
 Optional features:
 
 - Telegram direct notifications.

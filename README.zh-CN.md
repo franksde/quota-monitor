@@ -103,6 +103,8 @@ $EDITOR ~/.quota-monitor/.env
 
 QuotaMonitor 扫描本地 Claude 活动日志和 Codex 使用量元数据，推导当前 quota 窗口，并在重置可用时发送通知。它只保存很小的状态标记，例如“这个 reset 已经通知过”，不会保存对话内容。
 
+Codex 的请求频率会根据距阈值的距离自适应：用量离阈值较远时退避到 10-20 分钟；达到阈值且当前窗口未 reset 前复用缓存，不会每次 run 都请求 ChatGPT API。
+
 可选功能：
 
 - Telegram direct 通知。
