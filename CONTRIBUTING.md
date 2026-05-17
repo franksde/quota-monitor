@@ -1,4 +1,4 @@
-# Contributing to QuotaMonitor
+# Contributing to quota-monitor
 
 ## Setup
 

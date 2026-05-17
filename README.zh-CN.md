@@ -1,6 +1,6 @@
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-# QuotaMonitor
+# quota-monitor
 
 > 监控 Claude / Codex 的 5 小时 quota 窗口，并在重置时通知你。零运行时依赖 Python，可选 Cloudflare relay。
 
@@ -10,7 +10,7 @@
 
 ### 第 1 步：把这段 prompt 发给你的 AI Agent
 
-> 我想在 macOS 上安装 `franksde/quota-monitor`（https://github.com/franksde/quota-monitor）。
+> 我想在 macOS 上安装 `franksde/quota-monitor`（<https://github.com/franksde/quota-monitor>）。
 > 请先阅读项目 README。不要直接安装所有依赖；先向我说明安装选项，并问我想走哪种模式：
 >
 > 1. **通知模式**
@@ -95,24 +95,23 @@ quota-monitor statusline uninstall
 
 这两种情况下，probe 只能猜。一台真实 cc-switch 机器上的实测偏差：**连续使用时大约偏 60 分钟；刚刚过完一次真实 reset 之后偏差可达 ~4 小时**（算法看不到 reset 事件，只会沿用已经过期的旧窗口继续推算）。补救办法是装好 statusLine：它会把 Claude Code 自带的精确 rate-limit 信息缓存下来，probe 优先使用这个精确值。
 
-## 快速开始（手动）
+## 快速开始
+
+通过 Homebrew 安装：
 
 ```bash
-python3.11 -m venv .venv
-.venv/bin/python -m pip install -e .
-mkdir -p ~/.quota-monitor
-cp config.example.toml ~/.quota-monitor/config.toml
-cp .env.example ~/.quota-monitor/.env
-$EDITOR ~/.quota-monitor/.env
-.venv/bin/python -m quota_monitor notify-test
-.venv/bin/python -m quota_monitor run --dry-run
+brew install franksde/quota-monitor/quota-monitor
 ```
 
-通过 `python3.11 -m quota_monitor setup` 安装 LaunchAgent，或使用 `docs/linux-systemd.md` 里的 Linux systemd 模板。
+然后运行向导配置并自动注册 LaunchAgent：
+
+```bash
+quota-monitor setup
+```
 
 ## 它做什么
 
-QuotaMonitor 扫描本地 Claude 活动日志和 Codex 使用量元数据，推导当前 quota 窗口，并在重置可用时发送通知。它只保存很小的状态标记，例如“这个 reset 已经通知过”，不会保存对话内容。
+quota-monitor 扫描本地 Claude 活动日志和 Codex 使用量元数据，推导当前 quota 窗口，并在重置可用时发送通知。它只保存很小的状态标记，例如“这个 reset 已经通知过”，不会保存对话内容。
 
 Codex 的请求频率会根据距阈值的距离自适应：用量离阈值较远时退避到 10-20 分钟；达到阈值且当前窗口未 reset 前复用缓存，不会每次 run 都请求 ChatGPT API。
 
@@ -163,7 +162,7 @@ Codex 的请求频率会根据距阈值的距离自适应：用量离阈值较�
 把这个 prompt 交给你的 AI agent：
 
 ```text
-给 QuotaMonitor 增加一个名为 <name> 的 notifier。先阅读 docs/adding-notifier.md。
+给 quota-monitor 增加一个名为 <name> 的 notifier。先阅读 docs/adding-notifier.md。
 实现一个 Notifier class，包含 name 和 send(Alert) -> None；把它接入
 cli/run.py 和 cli/notify_test.py；如果适合，也把它加进 setup wizard；
 测试参考 Telegram notifier 的测试方式，补上 pytest contract coverage。
@@ -208,7 +207,7 @@ keepalive 内容会从 10 条短语里随机抽取，同一轮 10 次内不会�
 - `config file not found`：运行 `python3.11 -m quota_monitor setup`。
 - `Telegram credentials missing`：检查 `~/.quota-monitor/.env`。
 - 第二次运行没有通知：如果同一个 reset 已经通知过，这是预期行为。
-- State 损坏：QuotaMonitor 会自愈到默认 state，并记录 warning。
+- State 损坏：quota-monitor 会自愈到默认 state，并记录 warning。
 - LaunchAgent 没有加载：手动运行 `launchctl load -w ~/Library/LaunchAgents/io.github.frank.quotamonitor.plist` 并检查 stderr。
 - Cloudflare 部署失败：运行 `wrangler whoami`、`wrangler tail`，并阅读 `docs/cloudflare.md`。
 

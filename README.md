@@ -1,6 +1,6 @@
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-# QuotaMonitor
+# quota-monitor
 
 > Monitor Claude / Codex 5-hour quota windows and notify on reset. Zero-dependency Python, optional Cloudflare relay.
 
@@ -12,7 +12,7 @@ prepare the outside world before you run the wizard.
 
 ### Step 1 — Paste this prompt to your AI agent:
 
-> I want to install `franksde/quota-monitor` from https://github.com/franksde/quota-monitor on macOS.
+> I want to install `franksde/quota-monitor` from <https://github.com/franksde/quota-monitor> on macOS.
 > Read the project README first. Before installing anything, explain the setup
 > choices to me and ask which path I want:
 >
@@ -99,24 +99,23 @@ The estimated path infers the 5-hour window boundary from local `~/.claude/proje
 
 In either case, the probe is guessing. Measured drift on a real cc-switch install: **roughly 60 minutes off when activity is continuous; up to ~4 hours off shortly after the actual server-side reset** (replay can't see the reset event, so it keeps extending an already-stale window). The fix is to keep statusLine installed: it caches the precise reset time from Claude Code's own rate-limit headers and the probe trusts that when available.
 
-## Quickstart (manual)
+## Quickstart
+
+Install via Homebrew:
 
 ```bash
-python3.11 -m venv .venv
-.venv/bin/python -m pip install -e .
-mkdir -p ~/.quota-monitor
-cp config.example.toml ~/.quota-monitor/config.toml
-cp .env.example ~/.quota-monitor/.env
-$EDITOR ~/.quota-monitor/.env
-.venv/bin/python -m quota_monitor notify-test
-.venv/bin/python -m quota_monitor run --dry-run
+brew install franksde/quota-monitor/quota-monitor
 ```
 
-Install the LaunchAgent through `python3.11 -m quota_monitor setup`, or use the Linux systemd template in `docs/linux-systemd.md`.
+Then run the setup wizard to configure and install the LaunchAgent:
+
+```bash
+quota-monitor setup
+```
 
 ## What it does
 
-QuotaMonitor scans local Claude activity logs and Codex usage metadata, derives the current quota window, and sends a notification when a reset should be actionable. It keeps only small state markers such as "already alerted for this reset", never conversation content.
+quota-monitor scans local Claude activity logs and Codex usage metadata, derives the current quota window, and sends a notification when a reset should be actionable. It keeps only small state markers such as "already alerted for this reset", never conversation content.
 
 Codex usage fetches are self-throttling: request frequency adapts to distance from the alert threshold, backing off to 10-20 minutes when usage is low and reusing cached data after the threshold is reached until the current window resets.
 
@@ -150,7 +149,7 @@ Optional features:
 - Local mode costs $0.
 - Telegram Bot API is free for normal personal usage.
 - Cloudflare relay uses Workers + Queues + a tiny KV. CF Queues free tier allows 1M operations/month; each alert consumes 3 ops (send + deliver + ack), so heavy use (10 alerts/day) is ~900 ops/month. Workers Free allows 100k requests/day. Workers KV is used only as a schedule tombstone (≤10 ops/day, no `list` operations) so all KV free-tier limits are effectively non-binding.
-- The relay is event-driven via CF Queues `delaySeconds` — no cron, no polling. Old QuotaMonitor versions ran a 3-minute cron that called KV `list` and could trigger Cloudflare's "50% usage warning" email; that design has been replaced.
+- The relay is event-driven via CF Queues `delaySeconds` — no cron, no polling. Old quota-monitor versions ran a 3-minute cron that called KV `list` and could trigger Cloudflare's "50% usage warning" email; that design has been replaced.
 
 ## Choose your notification channel
 
@@ -167,7 +166,7 @@ Recommended default: Telegram direct with macOS native fallback. Use Cloudflare 
 Give this prompt to your AI agent:
 
 ```text
-Add a new QuotaMonitor notifier named <name>. Read docs/adding-notifier.md.
+Add a new quota-monitor notifier named <name>. Read docs/adding-notifier.md.
 Implement a Notifier class with name and send(Alert) -> None, wire it into
 cli/run.py and cli/notify_test.py, add setup wizard options if appropriate,
 and add pytest contract coverage following the Telegram notifier tests.
@@ -222,7 +221,7 @@ detectable in principle.
 - `config file not found`: run `python3.11 -m quota_monitor setup`.
 - Telegram credentials missing: check `~/.quota-monitor/.env`.
 - No notification on second run: expected when the same reset was already alerted.
-- Corrupt state: QuotaMonitor self-heals to default state and logs a warning.
+- Corrupt state: quota-monitor self-heals to default state and logs a warning.
 - LaunchAgent did not load: run `launchctl load -w ~/Library/LaunchAgents/io.github.frank.quotamonitor.plist` manually and inspect stderr.
 - Cloudflare deploy failed: run `wrangler whoami`, `wrangler tail`, and see `docs/cloudflare.md`.
 
