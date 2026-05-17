@@ -16,6 +16,7 @@ from ..notifiers.cloudflare_relay import CloudflareRelayNotifier
 from ..notifiers.macos_native import MacOSNativeNotifier
 from ..notifiers.telegram import TelegramNotifier
 from ..platform import paths as platform_paths
+from ..probes._throttled_fetch import FetchHint
 from ..probes.claude import scan_claude
 from ..probes.codex import CodexAuthMissingError, scan_codex
 from ..probes.precise import read_precise
@@ -52,6 +53,16 @@ def _alert_for(decision: AlertDecision, *, estimated: bool = False) -> Alert:
         body=body,
         reset_at=decision.reset_at,
         source=decision.source,
+    )
+
+
+def _codex_fetch_hint(state: CodexState) -> Optional[FetchHint]:
+    if state.last_fetch_at <= 0 or state.last_reset_at <= 0:
+        return None
+    return FetchHint(
+        last_fetch_at=state.last_fetch_at,
+        last_used_percent=state.last_used_percent,
+        last_reset_at=state.last_reset_at,
     )
 
 
@@ -100,11 +111,25 @@ def run_once(
     codex_result = None
     if cfg.probes.codex.enabled:
         try:
-            codex_result = scan_codex(auth_file=platform_paths.codex_auth_file())
+            codex_result = scan_codex(
+                auth_file=platform_paths.codex_auth_file(),
+                now=now,
+                hint=_codex_fetch_hint(state.codex),
+                threshold_percent=cfg.probes.codex.threshold_percent,
+                base_interval_seconds=300,
+            )
         except CodexAuthMissingError as e:
             print(t("log.probe_failed", source="codex", error=e), file=sys.stderr)
         except Exception as e:
             print(t("log.probe_failed", source="codex", error=e), file=sys.stderr)
+
+    if codex_result is not None and codex_result.extra.get("fetched") is True:
+        state = replace(state, codex=replace(
+            state.codex,
+            last_fetch_at=int(now),
+            last_used_percent=int(codex_result.extra.get("used_percent", 0) or 0),
+            last_reset_at=int(codex_result.extra.get("reset_at", 0) or 0),
+        ))
 
     precise = None
     if cfg.probes.claude.enabled:
@@ -187,8 +212,10 @@ def run_once(
                     cooldown_until=int(now) + 4 * 3600,
                 ))
             elif d.source == "codex":
-                new_state = replace(new_state, codex=CodexState(
-                    alerted_for_reset=d.reset_at, cooldown_until=d.reset_at,
+                new_state = replace(new_state, codex=replace(
+                    new_state.codex,
+                    alerted_for_reset=d.reset_at,
+                    cooldown_until=d.reset_at,
                 ))
 
     if cfg.keepalive.enabled:
