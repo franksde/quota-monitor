@@ -131,7 +131,7 @@ def _maybe_schedule_cf_recovered_alert(
     # and drops the older queued delivery — the user only gets one
     # notification with the most recent reset time.
     from ..core.window import WINDOW_SECONDS
-    schedule_id = f"claude-{int(best_reset // WINDOW_SECONDS)}"
+    schedule_id = f"claude-{int((best_reset + WINDOW_SECONDS // 2) // WINDOW_SECONDS)}"
     alert = Alert(
         title=t("alert.title.recovered", source="Claude"),
         body=t("alert.body.recovered", source="Claude", reset_at_human=reset_human),

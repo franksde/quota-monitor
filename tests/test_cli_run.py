@@ -1,7 +1,7 @@
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 import json
-from quota_monitor.cli.run import run_once
+from quota_monitor.cli.run import _maybe_schedule_cf_recovered_alert, run_once
 from quota_monitor.core.state import default_state
 from quota_monitor.core.window import WINDOW_SECONDS, RESET_CORRECTION_SECONDS
 from quota_monitor.probes import ProbeResult
@@ -553,6 +553,34 @@ def test_cf_mode_schedules_alert_when_precise_threshold_hit(tmp_path):
     assert sent_alert.schedule_id.startswith("claude-")
     saved = json.loads(state_path.read_text())
     assert saved["claude"]["scheduled_alert_reset_at"] == int(future_reset)
+
+
+def test_cf_schedule_id_is_stable_across_boundary_jitter():
+    cfg = MagicMock()
+    cfg.probes.claude.precise_threshold_percent = 30
+    now = WINDOW_SECONDS
+    reset_before = 3 * WINDOW_SECONDS - 1
+    reset_after = 3 * WINDOW_SECONDS + 1
+    schedule_ids = []
+
+    for reset_at in (reset_before, reset_after):
+        primary = MagicMock(name="cf")
+        precise = MagicMock(
+            five_hour_pct=80.0,
+            five_hour_resets_at=float(reset_at),
+        )
+        _maybe_schedule_cf_recovered_alert(
+            cfg=cfg,
+            state=default_state(),
+            precise=precise,
+            claude_result=None,
+            now=now,
+            primary=primary,
+            dry_run=False,
+        )
+        schedule_ids.append(primary.send.call_args.args[0].schedule_id)
+
+    assert schedule_ids[0] == schedule_ids[1]
 
 
 def test_cf_mode_dedupes_same_reset(tmp_path):
