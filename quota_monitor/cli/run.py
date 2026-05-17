@@ -177,7 +177,15 @@ def run_once(
         outcome = dispatch_alert(alert, primary=primary, fallback=fallback)
         if outcome in (DispatchOutcome.PRIMARY_SUCCESS, DispatchOutcome.FALLBACK_SUCCESS):
             if d.source == "claude":
-                new_state = replace(new_state, claude=ClaudeState(alerted_for_reset=d.reset_at))
+                # 4h cooldown — slightly under the 5h window so a real next
+                # reset can still fire. Cooldown anchored to wall-clock time
+                # (not d.reset_at) because the algorithm's reset_at can drift
+                # by hours under third-party routing; trusting it for
+                # cooldown would re-open the spam window.
+                new_state = replace(new_state, claude=ClaudeState(
+                    alerted_for_reset=d.reset_at,
+                    cooldown_until=int(now) + 4 * 3600,
+                ))
             elif d.source == "codex":
                 new_state = replace(new_state, codex=CodexState(
                     alerted_for_reset=d.reset_at, cooldown_until=d.reset_at,

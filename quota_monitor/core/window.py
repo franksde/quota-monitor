@@ -71,6 +71,7 @@ def decide_alerts(
         if (
             claude_window.count >= claude_threshold
             and claude_window.reset > now
+            and state.claude.cooldown_until <= now
             and state.claude.alerted_for_reset != int(claude_window.reset)
         ):
             decisions.append(AlertDecision(source="claude", reset_at=int(claude_window.reset)))

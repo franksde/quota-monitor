@@ -9,10 +9,13 @@ SCHEMA_VERSION = 1
 
 @dataclass(frozen=True)
 class ClaudeState:
-    """Minimal: only tracks which reset point has already been alerted.
+    """Minimal: tracks which reset point has been alerted, and a cooldown so
+    that a noisy reset_at value (replay_windows is sensitive to scan-window
+    boundary slide) can't trigger repeat pushes for the same underlying window.
     Never stores window start/reset — those come from Full Replay each tick.
     """
     alerted_for_reset: int = 0
+    cooldown_until: int = 0
 
 
 @dataclass(frozen=True)
@@ -52,7 +55,8 @@ def load_state(path: Path) -> State:
     try:
         # Backward-compatibility: silently ignore obsolete ClaudeState fields
         # (current_window_start / current_window_reset) that may exist in older state files.
-        claude_block = {k: v for k, v in (raw.get("claude") or {}).items() if k in {"alerted_for_reset"}}
+        claude_block = {k: v for k, v in (raw.get("claude") or {}).items()
+                        if k in {"alerted_for_reset", "cooldown_until"}}
         return State(
             schema_version=raw.get("schema_version", SCHEMA_VERSION),
             claude=ClaudeState(**claude_block),

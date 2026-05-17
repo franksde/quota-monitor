@@ -160,3 +160,61 @@ def test_decide_suppresses_codex_within_cooldown():
         claude_threshold=5, codex_threshold_percent=30,
     )
     assert decisions == []
+
+
+def test_decide_suppresses_claude_within_cooldown_even_when_reset_drifted():
+    """Regression: alert spam observed in the wild.
+
+    LaunchAgent runs every 5 min. replay_windows is sensitive to scan-window
+    boundary slide, so successive ticks can compute different reset_at values
+    (seconds, minutes, occasionally hours apart). The previous dedupe key was
+    `alerted_for_reset != int(window.reset)` — when reset_at drifts, this never
+    matches, and the user gets one push per drift (observed: 5 pushes in 80 min).
+
+    Fix: introduce a cooldown_until on ClaudeState (matching CodexState). After
+    a successful alert we set cooldown ~4h forward, so re-fires for the same
+    underlying window are dropped even when the noisy reset_at value moves.
+    """
+    state = State(claude=ClaudeState(
+        alerted_for_reset=1000,   # previous alert was for some old reset_at
+        cooldown_until=10_000,    # cooldown still active
+    ))
+    # current tick: reset_at completely different (algorithm drift) but within cooldown
+    reset = 9_999.0
+    w = LatestWindow(start=4999.0, reset=reset, count=10)
+    decisions = decide_alerts(
+        state=state, claude_window=w, codex=None, now=2_000,
+        claude_threshold=5, codex_threshold_percent=30,
+    )
+    assert decisions == []
+
+
+def test_decide_emits_claude_after_cooldown_expires():
+    state = State(claude=ClaudeState(
+        alerted_for_reset=1000,
+        cooldown_until=2_000,  # cooldown over
+    ))
+    reset = 10_000.0
+    w = LatestWindow(start=5000.0, reset=reset, count=10)
+    decisions = decide_alerts(
+        state=state, claude_window=w, codex=None, now=3_000,
+        claude_threshold=5, codex_threshold_percent=30,
+    )
+    assert len(decisions) == 1
+
+
+def test_claude_state_loads_legacy_without_cooldown(tmp_path):
+    """Old state.json files don't have cooldown_until — must default to 0
+    so users upgrading don't see a corruption warning."""
+    import json
+    from quota_monitor.core.state import load_state
+    path = tmp_path / "state.json"
+    path.write_text(json.dumps({
+        "schema_version": 1,
+        "claude": {"alerted_for_reset": 12345},
+        "codex": {"alerted_for_reset": 0, "cooldown_until": 0},
+        "keepalive": {"last_seamless_scheduled_for": 0, "phrase_pool_used_indices": [], "phrase_pool_size_at_init": 0},
+    }))
+    s = load_state(path)
+    assert s.claude.alerted_for_reset == 12345
+    assert s.claude.cooldown_until == 0
