@@ -26,6 +26,7 @@ MESSAGES = {
     "wizard.step5.worker_exists": "[!] Worker '{name}' already exists.",
     "wizard.step5.worker_action.options": ["Overwrite existing Worker (Recommended if reinstalling)", "Deploy with a different Worker name", "Abort deployment"],
     "wizard.step5.worker_new_name": "Enter new Worker name (e.g. my-quota-relay)",
+    "wizard.step5.queue_create": "\nEnsuring Queue '{name}' exists...",
     "wizard.step5.push_secrets": "\nPushing secrets to Cloudflare...",
     "wizard.step5.deploying": "\nDeploying worker...",
     "wizard.step6.title": "\n=== (6/8) Keepalive ===",
