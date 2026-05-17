@@ -75,7 +75,7 @@ def deploy_cf_relay(
     queue_name = "quota-monitor-alerts"
     print(t("wizard.step5.queue_create", name=queue_name))
     rc, _, err = _run_wrangler(["queues", "create", queue_name], cwd=relay_dir)
-    if rc != 0 and "already exists" not in err:
+    if rc != 0 and "already" not in err.lower():
         print(f"[error] wrangler queues create failed: {err}", file=sys.stderr)
         return None
 
