@@ -76,6 +76,15 @@ quota-monitor statusline uninstall
 - Precise (from statusLine): triggers when `five_hour.used_percentage` reaches `probes.claude.precise_threshold_percent` (default `30`), then uses the exact statusLine reset time: "Quota resets at 15:30"
 - Estimated (from local logs): "Quota resets at 15:30 (estimated from local conversation logs)"
 
+### When the estimated reset can be wrong
+
+The estimated path infers the 5-hour window boundary from local `~/.claude/projects/**/*.jsonl` timestamps. That works when Claude Code is the only thing burning your Anthropic quota. It can drift if either is true:
+
+- **You use a third-party model router (e.g. `cc switch`).** Those calls write local jsonl entries that look like API calls, but they never reach Anthropic and don't shift Anthropic's 5-hour window. Conversely, the call that actually *started* Anthropic's current window may never appear locally.
+- **You also use claude.ai web chat.** Web messages count toward the same 5-hour quota but are not written to any local file.
+
+In either case, the probe is guessing. Expect drift up to a few hours. The fix is to keep statusLine installed: it caches the precise reset time from Claude Code's own rate-limit headers and the probe trusts that when available.
+
 ## Quickstart (manual)
 
 ```bash

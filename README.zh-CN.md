@@ -75,6 +75,15 @@ quota-monitor statusline uninstall
 - 精确值（来自 statusLine）：当 `five_hour.used_percentage` 达到 `probes.claude.precise_threshold_percent`（默认 `30`）时触发，并使用 statusLine 的精确 reset 时间：「额度将于 15:30 恢复」
 - 估算值（来自本地日志）：「额度将于 15:30 恢复（根据本地对话记录时间估算）」
 
+### 估算值可能不准的情况
+
+估算路径是根据本地 `~/.claude/projects/**/*.jsonl` 的时间戳反推 5 小时窗口边界。只有当 Claude Code 是消耗 Anthropic 额度的**唯一来源**时才准确。下列情况会偏差：
+
+- **使用第三方模型路由（例如 `cc switch`）**。这些调用会写本地 jsonl，但实际上根本没发到 Anthropic，不会影响 Anthropic 5 小时窗口的起点；反过来，真正启动 Anthropic 当前窗口的那条请求可能本地一条记录都没有。
+- **同时使用 claude.ai 网页聊天**。网页消息计入同一 5 小时配额，但不会写任何本地文件。
+
+这两种情况下，probe 只能猜，偏差可能高达几个小时。补救办法是装好 statusLine：它会把 Claude Code 自带的精确 rate-limit 信息缓存下来，probe 优先使用这个精确值。
+
 ## 快速开始（手动）
 
 ```bash
