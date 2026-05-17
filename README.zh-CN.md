@@ -134,9 +134,8 @@ Codex 的请求频率会根据距阈值的距离自适应：用量离阈值较�
 
 - 本地模式成本为 $0。
 - Telegram Bot API 对正常个人使用免费。
-- Cloudflare relay 使用 Workers + KV。Workers 免费层是 100k requests/day；Workers KV 免费层是 100k reads/day，另有 1,000 writes/day、1,000 deletes/day、1,000 list requests/day。
-- Relay 默认建议 Worker cron 每 3 分钟运行一次：`*/3 * * * *`。一天是 480 次 scheduled checks，低于 500 次。这个 scheduled check 会执行 KV list；对于每天 1,000 次的 KV list 额度来说，500 次就是 50% 提醒线。保持 3 分钟一次，通常可以避开“用量到 50%”这类提醒邮件。
-- 如果你更在意通知延迟，可以改成每 2 分钟一次：`*/2 * * * *`。一天是 720 次，仍低于硬性免费额度，但可能每天收到一封用量提醒邮件。不介意邮件的话可以这么做。
+- Cloudflare relay 使用 Workers + Queues + 极少量 KV。CF Queues 免费层 1M ops/月；每条 alert 占 3 ops（send + deliver + ack），即使重度使用（10 alerts/天）也只有 ~900 ops/月。Workers 免费层 100k requests/day。Workers KV 仅用作 schedule tombstone（≤10 ops/day，**无任何 list 操作**），所以 KV 免费层各项额度基本用不掉。
+- Relay 是 event-driven（基于 CF Queues 的 `delaySeconds`）—— 不依赖 cron，不做 polling。旧版本曾用 3 分钟 cron + KV list，会触发 Cloudflare 的"用量到 50%"提醒邮件；该设计已被替换。
 
 ## 选择通知渠道
 
@@ -144,7 +143,7 @@ Codex 的请求频率会根据距阈值的距离自适应：用量离阈值较�
 |---|---|---|
 | Telegram direct | 大多数用户 | 需要 bot token + chat id |
 | macOS native | 你在 Mac 前时作为本地 fallback | 机器睡眠时无法通知 |
-| Cloudflare relay | 即使笔记本不运行，也希望按时收到延迟通知 | 需要 `wrangler`、Cloudflare 账号和 Worker/KV 设置 |
+| Cloudflare relay | 即使笔记本不运行，也希望按时收到延迟通知 | 需要 `wrangler`、Cloudflare 账号、Worker + Queue +（可选）KV |
 
 推荐默认值：Telegram direct + macOS native fallback。如果你需要笔记本不运行时仍能延迟送达，使用 Cloudflare relay。
 
@@ -165,8 +164,8 @@ cli/run.py 和 cli/notify_test.py；如果适合，也把它加进 setup wizard�
 
 Relay 提供：
 
-- `POST /api/schedule`：把延迟 Telegram 消息存入 KV。
-- `scheduled`：cron handler，发送到期 Telegram 消息。默认建议每 3 分钟运行一次（`*/3 * * * *`），一天 480 次。
+- `POST /api/schedule`：把消息排入 CF Queue，`delaySeconds = reset_time_epoch - now` 由 Worker 计算。可选传 `schedule_id`，让相同 id 的后续 schedule 覆盖前一条（KV tombstone，细节见 `cloudflare-relay/README.md`）。
+- CF Queue consumer：到点时检查 tombstone（如果绑定了 KV），如果该 id 被更新过的 schedule 覆盖了就 ack 丢弃，否则推送到 Telegram。
 - 面向 Claude status 风格 payload 的通用 webhook 处理。
 
 ## ⚠️ 风险

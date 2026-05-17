@@ -135,9 +135,8 @@ Optional features:
 
 - Local mode costs $0.
 - Telegram Bot API is free for normal personal usage.
-- Cloudflare relay uses Workers + KV. Workers Free allows 100k requests/day. Workers KV Free includes 100k reads/day, plus 1,000 writes/day, 1,000 deletes/day, and 1,000 list requests/day.
-- The relay is designed to run its Worker cron every 3 minutes: `*/3 * * * *`. That is 480 scheduled checks/day, just under 500/day. Since the scheduled check lists KV entries, staying under 500/day avoids the common 50% usage-warning email for the 1,000/day KV list quota.
-- You can change the cron to every 2 minutes (`*/2 * * * *`) if you want faster delivery. That is 720 scheduled checks/day. It still leaves room under the hard free-tier limit, but you may get a daily usage-warning email.
+- Cloudflare relay uses Workers + Queues + a tiny KV. CF Queues free tier allows 1M operations/month; each alert consumes 3 ops (send + deliver + ack), so heavy use (10 alerts/day) is ~900 ops/month. Workers Free allows 100k requests/day. Workers KV is used only as a schedule tombstone (≤10 ops/day, no `list` operations) so all KV free-tier limits are effectively non-binding.
+- The relay is event-driven via CF Queues `delaySeconds` — no cron, no polling. Old QuotaMonitor versions ran a 3-minute cron that called KV `list` and could trigger Cloudflare's "50% usage warning" email; that design has been replaced.
 
 ## Choose your notification channel
 
@@ -145,7 +144,7 @@ Optional features:
 |---|---|---|
 | Telegram direct | Most users | Requires bot token + chat id |
 | macOS native | Local fallback while you are at the Mac | Cannot notify while the machine is asleep |
-| Cloudflare relay | Delayed reset notification even if laptop is off | Requires `wrangler`, Cloudflare account, and Worker/KV setup |
+| Cloudflare relay | Delayed reset notification even if laptop is off | Requires `wrangler`, Cloudflare account, Worker + Queue + (optional) KV |
 
 Recommended default: Telegram direct with macOS native fallback. Use Cloudflare relay if you care about delayed delivery while the laptop is not running.
 
@@ -166,9 +165,9 @@ The wizard can deploy the relay automatically when you pick `cloudflare_relay`. 
 
 The relay exposes:
 
-- `POST /api/schedule`: store a delayed Telegram message in KV.
-- `scheduled`: cron handler that sends due Telegram messages. The default schedule is every 3 minutes (`*/3 * * * *`), which is 480 checks/day.
-- generic webhook handling for Claude status-style payloads.
+- `POST /api/schedule`: enqueue a Telegram message into CF Queues with `delaySeconds = reset_time_epoch - now`. Optionally accepts a `schedule_id` so a later schedule for the same id supersedes the earlier one (KV tombstone, see `cloudflare-relay/README.md` for details).
+- CF Queue consumer: at the scheduled time, checks the tombstone (if KV is bound) and delivers to Telegram, or silently ack-drops if superseded.
+- Generic webhook handling for Claude status-style payloads.
 
 ## ⚠️ Risks
 

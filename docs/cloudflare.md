@@ -1,6 +1,6 @@
 # Cloudflare Relay
 
-The Cloudflare relay lets QuotaMonitor schedule delayed Telegram delivery even if the local Mac is asleep later. Uses CF Queues for precise, zero-polling delayed delivery.
+The Cloudflare relay lets QuotaMonitor schedule delayed Telegram delivery even if the local Mac is asleep later. Uses CF Queues for precise, zero-polling delayed delivery, plus a small KV namespace as a tombstone so refined schedules can supersede outdated queued ones.
 
 ## Automatic Setup
 
@@ -16,8 +16,10 @@ Choose `cloudflare_relay` as the primary notifier. The wizard will:
 2. Verify `wrangler whoami` succeeds.
 3. Write `cloudflare-relay/wrangler.toml` from the example file.
 4. Push `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` as Worker secrets.
-5. Deploy the Worker (Queue is created automatically).
-6. Write the deployed `/api/schedule` URL into `~/.quota-monitor/config.toml`.
+5. Create the `quota-monitor-alerts` Queue.
+6. Provision the `SCHEDULE_TOMBSTONE` KV namespace and wire its id into `wrangler.toml` (so quota-monitor can supersede already-queued alerts when reset prediction is refined). Non-fatal if it fails — the relay degrades to no-dedupe behaviour.
+7. Deploy the Worker.
+8. Write the deployed `/api/schedule` URL into `~/.quota-monitor/config.toml`.
 
 ## Manual Setup
 
@@ -26,6 +28,13 @@ npm install -g wrangler
 wrangler login
 cd cloudflare-relay
 cp wrangler.toml.example wrangler.toml
+
+# Provision the schedule-tombstone KV namespace, then paste the printed
+# id into wrangler.toml under [[kv_namespaces]] binding "SCHEDULE_TOMBSTONE".
+# (Skip this and the worker still works — without KV, refined schedules
+# can produce 2-3 duplicate Telegram messages instead of one.)
+wrangler kv namespace create SCHEDULE_TOMBSTONE
+
 wrangler secret put TELEGRAM_BOT_TOKEN
 wrangler secret put TELEGRAM_CHAT_ID
 wrangler deploy
@@ -73,9 +82,11 @@ Useful checks:
 
 ## Cost
 
-The relay uses CF Queues Free tier: 1 million operations/month. Each alert consumes 3 operations (send + deliver + ack). Even heavy usage (10 alerts/day) = 900 ops/month — negligible.
+CF Queues Free tier: 1 million operations/month. Each alert consumes 3 operations (send + deliver + ack). Even heavy usage (10 alerts/day) = 900 ops/month — negligible.
 
-No KV, no cron polling, no daily limit concerns.
+CF Workers KV Free tier: 100k reads/day, 1k writes/day, 1k deletes/day, 1k list/day. The tombstone uses only direct `get`/`put` (no `list`), at roughly one write per `/api/schedule` and one read per Queue delivery — well under 10 ops/day, no list ops at all. No quota concerns and no risk of the "50% usage" warning email that the old polling design used to trigger.
+
+No cron polling.
 
 ## Claude Status Notifications (bonus)
 
