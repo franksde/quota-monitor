@@ -37,13 +37,16 @@ def _build_notifier(name: str, cfg, secrets: dict[str, str]) -> Optional[Notifie
     return None
 
 
-def _alert_for(decision: AlertDecision) -> Alert:
+def _alert_for(decision: AlertDecision, *, estimated: bool = False) -> Alert:
     label = "Claude" if decision.source == "claude" else "Codex"
     reset_dt = datetime.fromtimestamp(decision.reset_at, tz=timezone.utc)
     reset_human = reset_dt.strftime("%Y-%m-%d %H:%M:%S UTC")
+    body = t("alert.body.recovered", source=label, reset_at_human=reset_human)
+    if estimated:
+        body += t("alert.suffix.estimated")
     return Alert(
         title=t("alert.title.recovered", source=label),
-        body=t("alert.body.recovered", source=label, reset_at_human=reset_human),
+        body=body,
         reset_at=decision.reset_at,
         source=decision.source,
     )
@@ -95,6 +98,7 @@ def run_once(
     calibration_state = load_calibration(platform_paths.calibration_file())
 
     if precise is not None:
+        claude_source_type = "precise"
         claude_window = LatestWindow(
             start=precise.five_hour_resets_at - (cfg.probes.claude.window_hours * 3600),
             reset=precise.five_hour_resets_at,
@@ -124,6 +128,7 @@ def run_once(
             if claude_result is not None
             else None
         )
+        claude_source_type = "estimated" if claude_window is not None else None
 
     decisions = decide_alerts(
         state=state,
@@ -147,7 +152,10 @@ def run_once(
 
     new_state = state
     for d in decisions:
-        alert = _alert_for(d)
+        alert = _alert_for(
+            d,
+            estimated=d.source == "claude" and claude_source_type == "estimated",
+        )
         outcome = dispatch_alert(alert, primary=primary, fallback=fallback)
         if outcome in (DispatchOutcome.PRIMARY_SUCCESS, DispatchOutcome.FALLBACK_SUCCESS):
             if d.source == "claude":

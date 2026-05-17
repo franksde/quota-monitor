@@ -1,6 +1,6 @@
 import json
 import os
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 DEFAULT_CORRECTION_SECONDS = -360
@@ -20,11 +20,7 @@ class Sample:
 @dataclass
 class CalibrationState:
     current_correction_seconds: float = DEFAULT_CORRECTION_SECONDS
-    samples: list[Sample] | None = None
-
-    def __post_init__(self) -> None:
-        if self.samples is None:
-            self.samples = []
+    samples: list[Sample] = field(default_factory=list)
 
 
 def load_calibration(path: Path) -> CalibrationState:

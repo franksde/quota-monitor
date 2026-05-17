@@ -15,19 +15,22 @@ def uninstall(*, launch_agent_label: str, plist_path: Path) -> int:
 
     settings_path = platform_paths.claude_settings_file()
     backup_path = platform_paths.statusline_original()
+    restored_statusline = False
     if backup_path.exists():
-        restored = uninstall_wrapper(settings_path=settings_path, backup_path=backup_path)
-        if restored:
+        restored_statusline = uninstall_wrapper(settings_path=settings_path, backup_path=backup_path)
+        if restored_statusline:
             print(t("uninstall.statusline.restored"))
             print(t("uninstall.statusline.verify_cmd"))
         else:
             print(t("uninstall.statusline.skipped_manual"))
 
-    for path in (
+    cleanup_paths = [
         platform_paths.rate_limits_cache(),
-        platform_paths.statusline_original(),
         platform_paths.calibration_file(),
-    ):
+    ]
+    if restored_statusline:
+        cleanup_paths.append(platform_paths.statusline_original())
+    for path in cleanup_paths:
         if path.exists():
             path.unlink()
 

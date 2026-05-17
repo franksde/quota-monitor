@@ -89,7 +89,7 @@ def _collect_interactive_answers(*, existing_secrets: Optional[dict[str, str]] =
     answers: dict = {}
     existing_secrets = existing_secrets or {}
 
-    print("\n=== (1/7) Language ===")
+    print("\n=== (1/8) Language ===")
     locale_idx = ask_choice("Select language:", ["English", "中文"], default=0)
     answers["locale"] = "en" if locale_idx == 0 else "zh"
     set_locale(answers["locale"])
