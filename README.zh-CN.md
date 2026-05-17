@@ -36,6 +36,45 @@
 ### 安全提醒
 如果你把 Cloudflare API token 交给 AI agent，请使用 **scoped token**（仅 Workers + KV），不要使用 Global API Key。用完后建议撤销。
 
+## StatusLine 精确用量追踪（可选）
+
+quota-monitor 可以通过 Claude Code 的 [statusLine](https://docs.anthropic.com/en/docs/claude-code/status-line) 机制直接读取实时额度数据，获取精确的 5 小时和 7 天使用百分比及重置时间。
+
+### 工作原理
+
+1. 配置向导会将一个轻量 Python wrapper 设置为你的 Claude Code statusLine 命令
+2. 每次 Claude Code 更新状态栏时，wrapper 会：
+   - 从 JSON 数据中提取 `rate_limits`
+   - 写入本地缓存（`~/.quota-monitor/rate_limits_cache.json`）
+   - 将所有内容转发给原始 statusLine 工具（如有）
+   - 原样返回原始输出
+3. quota-monitor 定时扫描时，优先检查缓存：
+   - **缓存有效** → 使用精确值（确切百分比和重置时间）
+   - **缓存过期** → 回退到本地文件重放估算
+
+### 兼容性
+
+wrapper 可与现有 statusLine 工具共存：
+- **Open Island** — 自动检测并包装
+- **Claude HUD** — 自动检测并包装
+- **ccstatusline** — 自动检测并包装
+- **自定义脚本** — 任何现有 `statusLine` 配置均会保留
+
+### 手动安装/卸载
+
+```bash
+# 安装（也可通过 `quota-monitor setup` 完成）
+quota-monitor statusline install
+
+# 卸载（也包含在 `quota-monitor uninstall` 中）
+quota-monitor statusline uninstall
+```
+
+### 精确值 vs 估算值通知
+
+- 精确值（来自 statusLine）：「额度将于 15:30 恢复」
+- 估算值（来自本地日志）：「额度将于 15:30 恢复（根据本地对话记录时间估算）」
+
 ## 快速开始（手动）
 
 ```bash

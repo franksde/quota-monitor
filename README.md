@@ -37,6 +37,45 @@ prepare the outside world before you run the wizard.
 If you give your AI agent a Cloudflare API token, use a **scoped 
 token** (Workers + KV only), not your Global API Key. Revoke after.
 
+## StatusLine Precise Usage Tracking (Optional)
+
+quota-monitor can read real-time quota data directly from Claude Code via its [statusLine](https://docs.anthropic.com/en/docs/claude-code/status-line) mechanism, giving you precise 5-hour and 7-day usage percentages and exact reset times.
+
+### How it works
+
+1. The setup wizard configures a lightweight Python wrapper as your Claude Code statusLine command
+2. Each time Claude Code updates its status bar, the wrapper:
+   - Extracts `rate_limits` from the JSON payload
+   - Writes it to a local cache (`~/.quota-monitor/rate_limits_cache.json`)
+   - Forwards everything to your original statusLine tool (if any)
+   - Returns the original output unchanged
+3. When quota-monitor runs its periodic scan, it checks the cache first:
+   - **Cache valid** → uses precise values (exact percentage and reset time)
+   - **Cache expired** → falls back to local file replay estimation
+
+### Compatibility
+
+The wrapper is designed to work alongside existing statusLine tools:
+- **Open Island** — detected and wrapped automatically
+- **Claude HUD** — detected and wrapped automatically
+- **ccstatusline** — detected and wrapped automatically
+- **Custom scripts** — any existing `statusLine` config is preserved
+
+### Manual install/uninstall
+
+```bash
+# Install (also available via `quota-monitor setup`)
+quota-monitor statusline install
+
+# Uninstall (also part of `quota-monitor uninstall`)
+quota-monitor statusline uninstall
+```
+
+### Precise vs Estimated notifications
+
+- Precise (from statusLine): "Quota resets at 15:30"
+- Estimated (from local logs): "Quota resets at 15:30 (estimated from local conversation logs)"
+
 ## Quickstart (manual)
 
 ```bash
