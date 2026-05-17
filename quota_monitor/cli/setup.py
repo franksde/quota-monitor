@@ -1,9 +1,11 @@
+import json
 import sys
 from pathlib import Path
 from typing import Optional
 
 from ..config.dotenv import parse_dotenv
 from ..i18n import set_locale, t
+from ..statusline.installer import detect_existing_statusline, install_wrapper, StatusLineState
 from .notify_test import send_test
 from ._input import ask_choice, ask_string, ask_yes_no
 from ._preflight import preflight_check
@@ -54,6 +56,32 @@ def _render_env(answers: dict) -> str:
         f"TELEGRAM_BOT_TOKEN={answers.get('telegram_bot_token', '')}\n"
         f"TELEGRAM_CHAT_ID={answers.get('telegram_chat_id', '')}\n"
     )
+
+
+def _statusline_wizard_step(*, settings_path: Path, backup_path: Path) -> None:
+    state = detect_existing_statusline(settings_path)
+
+    if state == StatusLineState.OUR_WRAPPER:
+        print(t("wizard.statusline.already_configured"))
+        return
+
+    if state == StatusLineState.NONE:
+        prompt = t("wizard.statusline.enable_fresh")
+    else:
+        try:
+            settings = json.loads(settings_path.read_text())
+            statusline = settings.get("statusLine", "")
+            if isinstance(statusline, dict):
+                cmd_preview = (statusline.get("command") or "")[:30]
+            else:
+                cmd_preview = str(statusline)[:30]
+        except (json.JSONDecodeError, OSError):
+            cmd_preview = "unknown"
+        prompt = t("wizard.statusline.enable_existing", cmd_preview=cmd_preview)
+
+    if ask_yes_no(prompt, default=True):
+        install_wrapper(settings_path=settings_path, backup_path=backup_path)
+        print(t("wizard.statusline.installed"))
 
 
 def _collect_interactive_answers(*, existing_secrets: Optional[dict[str, str]] = None) -> dict:
@@ -130,6 +158,13 @@ def _collect_interactive_answers(*, existing_secrets: Optional[dict[str, str]] =
     if answers["keepalive_enabled"]:
         idx = ask_choice(t("wizard.step6.strategy"), t("wizard.step6.strategy.options"), default=0)
         answers["keepalive_strategy"] = "polling" if idx == 0 else "seamless"
+
+    print(t("wizard.statusline.title", step="7/8"))
+    from ..platform import paths as platform_paths
+    _statusline_wizard_step(
+        settings_path=platform_paths.claude_settings_file(),
+        backup_path=platform_paths.statusline_original(),
+    )
 
     print(t("wizard.step7.title"))
     sched_idx = ask_choice(
