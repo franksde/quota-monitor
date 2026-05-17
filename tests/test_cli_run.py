@@ -67,7 +67,10 @@ def test_run_once_writes_alerted_state_on_success(tmp_path):
     state_path = tmp_path / "state.json"
     fake_probe_result = MagicMock(source="claude", timestamps=(1000.0,) * 6, extra={})
     with patch("quota_monitor.cli.run.scan_claude", return_value=fake_probe_result), \
+         patch("quota_monitor.cli.run.platform_paths") as mock_paths, \
          patch("quota_monitor.cli.run.TelegramNotifier") as TG:
+        mock_paths.rate_limits_cache.return_value = tmp_path / "no_cache.json"
+        mock_paths.calibration_file.return_value = tmp_path / "cal.json"
         tg_instance = MagicMock(name="telegram"); tg_instance.name = "telegram"
         TG.return_value = tg_instance
         rc = run_once(
@@ -136,7 +139,10 @@ def test_run_once_does_not_realert_in_same_window(tmp_path):
     }))
     fake = MagicMock(source="claude", timestamps=(1000.0,) * 6, extra={})
     with patch("quota_monitor.cli.run.scan_claude", return_value=fake), \
+         patch("quota_monitor.cli.run.platform_paths") as mock_paths, \
          patch("quota_monitor.cli.run.TelegramNotifier") as TG:
+        mock_paths.rate_limits_cache.return_value = tmp_path / "no_cache.json"
+        mock_paths.calibration_file.return_value = tmp_path / "cal.json"
         tg_instance = MagicMock(); tg_instance.name = "telegram"
         TG.return_value = tg_instance
         rc = run_once(config_path=cfg_path, env_path=env_path, state_path=state_path, now=1010.0, dry_run=False)
