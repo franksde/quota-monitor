@@ -49,9 +49,27 @@ MESSAGES = {
         "  2. Sleep — both polling and seamless strategies stop working while macOS sleeps.\n"
         "     The natural 5h reset still happens; keepalive cannot save it if the Mac is asleep.\n"
     ),
+    "wizard.statusline.title": "\n=== ({step}) StatusLine Precise Usage Tracking ===",
+    "wizard.statusline.enable_fresh": (
+        "Enable statusLine usage tracking? A lightweight script will read real-time "
+        "quota data from Claude Code."
+    ),
+    "wizard.statusline.enable_existing": (
+        "Detected custom status line tool (`{cmd_preview}`). Allow wrapping it to capture "
+        "precise quota data? (Your existing tool's display will not be affected)"
+    ),
+    "wizard.statusline.already_configured": "StatusLine wrapper already configured. Skipping.",
+    "wizard.statusline.installed": "✓ StatusLine wrapper installed.",
 
     "cli.status.no_state": "No state yet. Run `quota-monitor run` first.",
     "cli.status.window": "{source} window: starts {start}, resets {reset}",
+
+    "uninstall.statusline.restored": "✓ StatusLine wrapper removed. Original status line restored.",
+    "uninstall.statusline.skipped_manual": "StatusLine has been manually changed since install. Skipping restore.",
+    "uninstall.statusline.skipped_no_backup": "No statusLine backup found. Skipping restore.",
+    "uninstall.statusline.verify_cmd": "  To verify: cat ~/.claude/settings.json | jq .statusLine",
+
+    "alert.suffix.estimated": " (estimated from local conversation logs)",
 
     "log.probe_failed": "[warn] {source} probe failed: {error}",
     "log.state_corrupted": "[warn] state file corrupted ({error}); resetting to defaults",

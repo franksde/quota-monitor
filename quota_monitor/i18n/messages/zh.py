@@ -49,9 +49,26 @@ MESSAGES = {
         "  2. 休眠失效 — polling 与 seamless 策略在 macOS 休眠期间均会停止工作。\n"
         "     自然的 5 小时重置仍会发生；如果电脑休眠，keepalive 无法挽救额度。\n"
     ),
+    "wizard.statusline.title": "\n=== ({step}) StatusLine 精确用量追踪 ===",
+    "wizard.statusline.enable_fresh": (
+        "是否启用 StatusLine 精确用量追踪？将配置一个轻量脚本读取 Claude Code 的实时额度信息。"
+    ),
+    "wizard.statusline.enable_existing": (
+        "检测到已安装自定义状态栏工具（`{cmd_preview}`）。是否同意包装一层以获取精确用量信息？"
+        "（不会影响现有状态栏工具的显示效果）"
+    ),
+    "wizard.statusline.already_configured": "StatusLine wrapper 已配置，跳过。",
+    "wizard.statusline.installed": "✓ StatusLine wrapper 已安装。",
 
     "cli.status.no_state": "尚无状态。请先运行 `quota-monitor run`。",
     "cli.status.window": "{source} 窗口:起 {start},终 {reset}",
+
+    "uninstall.statusline.restored": "✓ StatusLine wrapper 已移除，原状态栏配置已恢复。",
+    "uninstall.statusline.skipped_manual": "检测到 statusLine 已被手动更改，跳过还原。",
+    "uninstall.statusline.skipped_no_backup": "未找到 statusLine 备份，跳过还原。",
+    "uninstall.statusline.verify_cmd": "  检查命令: cat ~/.claude/settings.json | jq .statusLine",
+
+    "alert.suffix.estimated": "（根据本地对话记录时间估算）",
 
     "log.probe_failed": "[warn] {source} probe failed: {error}",
     "log.state_corrupted": "[warn] 状态文件损坏 ({error});重置为默认",
