@@ -57,6 +57,32 @@ strategy = "seamless"
     return cfg
 
 
+def _write_cf_with_codex_config(tmp_path: Path) -> Path:
+    cfg = tmp_path / "config.toml"
+    cfg.write_text("""
+locale = "en"
+[probes.claude]
+enabled = true
+threshold_turns = 5
+window_hours = 5
+precise_threshold_percent = 30
+[probes.codex]
+enabled = true
+threshold_percent = 30
+[notifiers]
+primary = "cloudflare_relay"
+fallback = ""
+[notifiers.telegram]
+[notifiers.cloudflare_relay]
+enabled = true
+webhook_url = "https://relay.example.com/api/schedule"
+[keepalive]
+enabled = false
+strategy = "seamless"
+""")
+    return cfg
+
+
 def _write_keepalive_config(tmp_path: Path) -> Path:
     cfg = tmp_path / "config.toml"
     cfg.write_text("""
@@ -570,6 +596,51 @@ def test_cf_mode_schedules_when_only_jsonl_turns_hit(tmp_path):
     cf_instance.send.assert_called_once()
     sent_alert = cf_instance.send.call_args.args[0]
     assert sent_alert.reset_at > now  # future
+
+
+def test_cf_mode_still_sends_codex_alert_via_telegram(tmp_path):
+    cfg_path = _write_cf_with_codex_config(tmp_path)
+    env_path = _write_env(tmp_path)
+    state_path = tmp_path / "state.json"
+    now = 10_000.0
+    future_reset = now + 3600
+    precise = MagicMock(
+        five_hour_pct=80.0,
+        five_hour_resets_at=future_reset,
+    )
+    codex_result = ProbeResult(
+        source="codex",
+        timestamps=(),
+        extra={"used_percent": 60, "reset_at": future_reset + 1200, "fetched": True},
+    )
+    fake_claude = MagicMock(source="claude", timestamps=(), extra={})
+
+    with patch("quota_monitor.cli.run.ensure_wrapper_installed", return_value=False), \
+         patch("quota_monitor.cli.run.scan_claude", return_value=fake_claude), \
+         patch("quota_monitor.cli.run.scan_codex", return_value=codex_result), \
+         patch("quota_monitor.cli.run.read_precise", return_value=precise), \
+         patch("quota_monitor.cli.run.CloudflareRelayNotifier") as CF, \
+         patch("quota_monitor.cli.run.TelegramNotifier") as TG:
+        cf_instance = MagicMock(name="cf")
+        cf_instance.name = "cloudflare_relay"
+        CF.return_value = cf_instance
+        tg_instance = MagicMock(name="telegram")
+        tg_instance.name = "telegram"
+        TG.return_value = tg_instance
+
+        rc = run_once(
+            config_path=cfg_path,
+            env_path=env_path,
+            state_path=state_path,
+            now=now,
+            dry_run=False,
+        )
+
+    assert rc == 0
+    cf_instance.send.assert_called_once()
+    tg_instance.send.assert_called_once()
+    sent_codex_alert = tg_instance.send.call_args.args[0]
+    assert sent_codex_alert.source == "codex"
 
 
 def test_cf_mode_skips_when_no_data_at_all(tmp_path):

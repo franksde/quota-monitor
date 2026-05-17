@@ -292,24 +292,26 @@ def run_once(
                 cfg=cfg, state=new_state, precise=precise,
                 claude_result=claude_result, now=now, primary=None, dry_run=True,
             )
-            return 0
-        primary = _build_notifier(cfg.notifiers.primary, cfg, cfg.secrets)
-        if primary is None:
-            print("[error] primary notifier could not be constructed", file=sys.stderr)
-            return 3
-        new_state = _maybe_schedule_cf_recovered_alert(
-            cfg=cfg, state=new_state, precise=precise,
-            claude_result=claude_result, now=now, primary=primary, dry_run=False,
-        )
-        save_state(state_path, new_state)
-        return 0
+        else:
+            cf_primary = _build_notifier(cfg.notifiers.primary, cfg, cfg.secrets)
+            if cf_primary is None:
+                print("[error] primary notifier could not be constructed", file=sys.stderr)
+                return 3
+            new_state = _maybe_schedule_cf_recovered_alert(
+                cfg=cfg, state=new_state, precise=precise,
+                claude_result=claude_result, now=now, primary=cf_primary, dry_run=False,
+            )
+
+    # In CF Queue mode Claude recovery is already handled above by delayed
+    # scheduling. Keep the polling alert path alive for Codex only.
+    alert_claude_window = None if is_cf_mode else claude_window
 
     # Polling mode (TG-direct, macOS native, etc.): fire at reset_at via
     # the at-reset-recovered model. No way to defer with these notifiers,
     # so we must catch the reset moment in a LaunchAgent tick.
     decisions = decide_alerts(
         state=state,
-        claude_window=claude_window,
+        claude_window=alert_claude_window,
         codex=codex_result,
         now=now,
         claude_threshold=cfg.probes.claude.threshold_turns,
@@ -321,7 +323,8 @@ def run_once(
             print(f"[dry-run] would alert: source={d.source} reset_at={d.reset_at}")
         return 0
 
-    primary = _build_notifier(cfg.notifiers.primary, cfg, cfg.secrets)
+    polling_primary_name = "telegram" if is_cf_mode else cfg.notifiers.primary
+    primary = _build_notifier(polling_primary_name, cfg, cfg.secrets)
     fallback = _build_notifier(cfg.notifiers.fallback, cfg, cfg.secrets)
     if primary is None:
         print("[error] primary notifier could not be constructed", file=sys.stderr)
