@@ -51,9 +51,16 @@ def seamless_tick(
 
     delay = int(time_to_reset) + buffer_seconds
     quoted_phrase = shlex.quote(phrase)
+    # Minimal-context invocation: --bare skips hooks/plugins/auto-memory/
+    # CLAUDE.md autoload, --system-prompt overrides the default system
+    # prompt (which is long), --tools "" disables tool descriptions, and
+    # --disable-slash-commands skips skill registration. Combined, this
+    # makes the keepalive call burn a fraction of the quota a normal
+    # `claude -p "hi"` would (default CLI was costing ~3% of the 5h window).
     inner = (
         f"sleep {delay} && {shlex.quote(claude_cli)} -p {quoted_phrase} "
-        f"--model {shlex.quote(model)} --no-session-persistence"
+        f"--model {shlex.quote(model)} --no-session-persistence "
+        f"--bare --system-prompt ping --tools '' --disable-slash-commands"
     )
     # Detached subprocess: start_new_session puts the child in its own
     # process group, so when this quota-monitor invocation exits the child

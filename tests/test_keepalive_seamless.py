@@ -44,6 +44,12 @@ def test_schedules_detached_subprocess_inside_trigger_window():
     assert "sleep " in inner   # detached sleep+exec, no tmux
     assert "/c -p" in inner
     assert "tmux" not in inner
+    # Minimal-context flags must be present — these cut keepalive cost
+    # from ~3% of the 5h window to a fraction of that. Regression-pin them.
+    assert "--bare" in inner
+    assert "--system-prompt ping" in inner
+    assert "--tools ''" in inner
+    assert "--disable-slash-commands" in inner
     # Must be detached so the parent's exit doesn't kill the sleeping child
     assert popen.call_args.kwargs.get("start_new_session") is True
     assert new_state.keepalive.last_seamless_scheduled_for == int(expected_reset)
