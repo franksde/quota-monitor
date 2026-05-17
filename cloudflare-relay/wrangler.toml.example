@@ -11,3 +11,10 @@ queue = "quota-monitor-alerts"
 max_batch_size = 1
 max_retries = 3
 dead_letter_queue = ""
+
+# KV namespace for schedule-tombstone (lets quota-monitor implicitly
+# supersede an already-queued delayed alert when the predicted reset time
+# changes). The setup wizard provisions this and fills in the id automatically.
+# [[kv_namespaces]]
+# binding = "SCHEDULE_TOMBSTONE"
+# id = "AUTO_FILLED_BY_SETUP"

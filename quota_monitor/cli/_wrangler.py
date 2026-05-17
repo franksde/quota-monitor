@@ -79,6 +79,41 @@ def deploy_cf_relay(
         print(f"[error] wrangler queues create failed: {err}", file=sys.stderr)
         return None
 
+    # Provision the schedule-tombstone KV namespace and wire it into
+    # wrangler.toml. Lets quota-monitor implicitly supersede an already-
+    # queued delayed alert when the predicted reset time gets refined.
+    # Failure here is non-fatal: the worker degrades to no-dedupe behaviour.
+    kv_ns_name = "SCHEDULE_TOMBSTONE"
+    print(t("wizard.step5.kv_create", name=kv_ns_name))
+    rc, out, err = _run_wrangler(["kv", "namespace", "create", kv_ns_name], cwd=relay_dir)
+    kv_id = None
+    if rc == 0:
+        m = re.search(r'id\s*=\s*"([0-9a-f]+)"', out)
+        if m:
+            kv_id = m.group(1)
+    elif "already" in err.lower() or "already" in out.lower():
+        # Find the existing namespace id via `wrangler kv namespace list`.
+        rc2, list_out, _ = _run_wrangler(["kv", "namespace", "list"], cwd=relay_dir)
+        if rc2 == 0:
+            try:
+                import json as _json
+                for ns in _json.loads(list_out):
+                    if ns.get("title", "").endswith(kv_ns_name):
+                        kv_id = ns.get("id")
+                        break
+            except Exception:
+                pass
+    if kv_id:
+        toml_path = relay_dir / "wrangler.toml"
+        current = toml_path.read_text()
+        kv_block = (
+            f'\n[[kv_namespaces]]\nbinding = "{kv_ns_name}"\nid = "{kv_id}"\n'
+        )
+        if f'binding = "{kv_ns_name}"' not in current:
+            toml_path.write_text(current.rstrip() + "\n" + kv_block)
+    else:
+        print(t("wizard.step5.kv_skipped"), file=sys.stderr)
+
     print(t("wizard.step5.deploying"))
     rc, out, err = _run_wrangler(["deploy"], cwd=relay_dir)
     if rc != 0:

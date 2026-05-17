@@ -27,6 +27,8 @@ MESSAGES = {
     "wizard.step5.worker_action.options": ["覆盖现有 Worker (重新安装或升级时推荐)", "使用不同的 Worker 名称进行部署", "中止部署"],
     "wizard.step5.worker_new_name": "输入新的 Worker 名称 (例如 my-quota-relay)",
     "wizard.step5.queue_create": "\n正在确保 Queue '{name}' 存在...",
+    "wizard.step5.kv_create": "正在创建 KV namespace '{name}'（用于支持更新已排队通知）...",
+    "wizard.step5.kv_skipped": "[warn] KV 创建失败；relay 仍能工作，但无法覆盖已排队的旧通知。",
     "wizard.step5.push_secrets": "\n正在将凭证推送到 Cloudflare...",
     "wizard.step5.deploying": "\n正在部署 worker...",
     "wizard.step6.title": "\n=== (6/8) 防休眠 (Keepalive) ===",

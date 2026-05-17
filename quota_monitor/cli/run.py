@@ -125,11 +125,19 @@ def _maybe_schedule_cf_recovered_alert(
         return state
 
     reset_human = datetime.fromtimestamp(best_reset).strftime("%Y-%m-%d %H:%M:%S")
+    # Stable id per 5h window bucket. If best_reset is later updated within
+    # the same logical window (precise data refines an earlier estimate),
+    # the worker's KV tombstone treats the newer schedule as authoritative
+    # and drops the older queued delivery — the user only gets one
+    # notification with the most recent reset time.
+    from ..core.window import WINDOW_SECONDS
+    schedule_id = f"claude-{int(best_reset // WINDOW_SECONDS)}"
     alert = Alert(
         title=t("alert.title.recovered", source="Claude"),
         body=t("alert.body.recovered", source="Claude", reset_at_human=reset_human),
         reset_at=int(best_reset),
         source="claude",
+        schedule_id=schedule_id,
     )
     try:
         primary.send(alert)

@@ -14,10 +14,16 @@ class CloudflareRelayNotifier:
     def send(self, alert: Alert) -> None:
         if not self.webhook_url:
             raise NotifierError("cloudflare_relay webhook_url not configured", retryable=False)
-        payload = json.dumps({
+        body = {
             "reset_time_epoch": int(alert.reset_at),
             "message": f"*{alert.title}*\n\n{alert.body}",
-        }).encode()
+        }
+        # schedule_id is optional. When present the worker writes a tombstone
+        # to KV so a later schedule for the same id will supersede this one
+        # at delivery time. Old worker deployments (no KV) ignore the field.
+        if alert.schedule_id:
+            body["schedule_id"] = alert.schedule_id
+        payload = json.dumps(body).encode()
         req = Request(self.webhook_url, data=payload, headers={
             "Content-Type": "application/json",
             "User-Agent": "QuotaMonitor/0.1.0",

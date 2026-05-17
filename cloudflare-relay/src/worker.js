@@ -45,9 +45,32 @@ export default {
       const data = await request.json();
       const resetEpoch = data.reset_time_epoch || Math.floor(Date.now() / 1000);
       const delaySeconds = Math.max(0, resetEpoch - Math.floor(Date.now() / 1000));
+      const scheduleId = data.schedule_id || null;
+
+      // Tombstone: if the client supplied a schedule_id and we have a KV
+      // binding, record (id -> latest reset_epoch) with a 6h TTL. The Queue
+      // consumer will compare its own message's reset_epoch against this
+      // value when delivering; mismatch == "this message was superseded by
+      // a later schedule for the same logical alert", drop silently.
+      // No KV binding => fall back to no-dedupe behaviour (older deployments).
+      if (scheduleId && env.SCHEDULE_TOMBSTONE) {
+        try {
+          await env.SCHEDULE_TOMBSTONE.put(
+            `latest:${scheduleId}`,
+            String(resetEpoch),
+            { expirationTtl: 6 * 3600 },
+          );
+        } catch (e) {
+          console.log("KV write failed (continuing):", e.message);
+        }
+      }
 
       await env.ALERTS_QUEUE.send(
-        { message: data.message || "Quota reset" },
+        {
+          message: data.message || "Quota reset",
+          schedule_id: scheduleId,
+          reset_time_epoch: resetEpoch,
+        },
         { delaySeconds },
       );
       return new Response(JSON.stringify({ scheduled: true, delay_seconds: delaySeconds }), {
@@ -84,6 +107,21 @@ export default {
   async queue(batch, env) {
     for (const msg of batch.messages) {
       try {
+        // Tombstone check: if this message carries a schedule_id, look up the
+        // latest schedule the client made for that ID. If our message's
+        // reset_time_epoch is older than the latest, this one was superseded
+        // — silently ack and skip delivery so the user only gets the most
+        // recent schedule's notification.
+        const scheduleId = msg.body.schedule_id;
+        const ourResetEpoch = msg.body.reset_time_epoch;
+        if (scheduleId && ourResetEpoch && env.SCHEDULE_TOMBSTONE) {
+          const latest = await env.SCHEDULE_TOMBSTONE.get(`latest:${scheduleId}`);
+          if (latest && Number(latest) !== ourResetEpoch) {
+            console.log(`Superseded: ${scheduleId} ours=${ourResetEpoch} latest=${latest}`);
+            msg.ack();
+            continue;
+          }
+        }
         await sendTelegram(env, msg.body.message);
         msg.ack();
       } catch (e) {

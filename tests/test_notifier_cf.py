@@ -23,6 +23,27 @@ def test_send_posts_reset_time_and_message():
     assert b'"reset_time_epoch": 999' in body or b'"reset_time_epoch":999' in body
 
 
+def test_send_includes_schedule_id_when_set():
+    """When Alert carries a schedule_id, propagate it so the worker can
+    tombstone-supersede older queued messages for the same id."""
+    n = CloudflareRelayNotifier(webhook_url="https://relay.example.com/api/schedule")
+    with patch("quota_monitor.notifiers.cloudflare_relay.urlopen", return_value=_fake_response()) as op:
+        n.send(Alert(title="T", body="B", reset_at=999, source="claude", schedule_id="claude-98837"))
+    body = op.call_args[0][0].data
+    assert b'"schedule_id"' in body
+    assert b'"claude-98837"' in body
+
+
+def test_send_omits_schedule_id_when_none():
+    """Backward compat: no schedule_id field in payload means older worker
+    (no KV) behaves exactly as before."""
+    n = CloudflareRelayNotifier(webhook_url="https://relay.example.com/api/schedule")
+    with patch("quota_monitor.notifiers.cloudflare_relay.urlopen", return_value=_fake_response()) as op:
+        n.send(Alert(title="T", body="B", reset_at=999, source="claude"))
+    body = op.call_args[0][0].data
+    assert b'schedule_id' not in body
+
+
 def test_send_raises_non_retryable_when_webhook_url_empty():
     n = CloudflareRelayNotifier(webhook_url="")
     with pytest.raises(NotifierError) as exc:

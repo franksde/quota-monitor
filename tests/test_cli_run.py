@@ -490,6 +490,10 @@ def test_cf_mode_schedules_alert_when_precise_threshold_hit(tmp_path):
     cf_instance.send.assert_called_once()
     sent_alert = cf_instance.send.call_args.args[0]
     assert sent_alert.reset_at == int(future_reset)
+    # schedule_id must be set so the worker can tombstone-supersede later
+    # schedules for the same 5h window when reset_at gets refined.
+    assert sent_alert.schedule_id is not None
+    assert sent_alert.schedule_id.startswith("claude-")
     saved = json.loads(state_path.read_text())
     assert saved["claude"]["scheduled_alert_reset_at"] == int(future_reset)
 
