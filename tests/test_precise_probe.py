@@ -26,12 +26,14 @@ def test_read_precise_returns_none_if_malformed(tmp_path):
         assert read_precise(path, now=time.time()) is None
 
 
-def test_read_precise_returns_none_if_five_hour_expired(tmp_path):
-    now = 2000.0
+def test_read_precise_returns_none_if_five_hour_expired_past_grace(tmp_path):
+    """reset more than 30 min in the past — definitely stale, drop."""
+    now = 10_000.0
     path = _write_cache(tmp_path, {
-        "captured_at": 1000.0,
-        "five_hour": {"used_percentage": 50.0, "resets_at": 1500.0},
-        "seven_day": {"used_percentage": 20.0, "resets_at": 9999.0},
+        "captured_at": now - 100,
+        # reset 45 min in the past, past the 30-min grace
+        "five_hour": {"used_percentage": 50.0, "resets_at": now - 45 * 60},
+        "seven_day": {"used_percentage": 20.0, "resets_at": now + 9999},
     })
     with patch("quota_monitor.probes.precise.read_claude_hud", return_value=None):
         assert read_precise(path, now=now) is None
@@ -115,14 +117,17 @@ def test_read_precise_falls_back_to_hud_when_own_cache_missing(tmp_path):
     assert result.five_hour_resets_at == 10_000.0
 
 
-def test_read_precise_falls_back_to_hud_when_own_cache_reset_in_past(tmp_path):
+def test_read_precise_falls_back_to_hud_when_own_cache_reset_past_grace(tmp_path):
     """The cc-switch scenario: wrapper keeps writing stale stdin data with a
-    reset_at that's already gone by. Fall through to HUD which has real data."""
-    now = 1000.0
+    reset_at long in the past. Fall through to HUD which has real data.
+    (own cache reset within the 30-min grace WOULD be kept; we test the
+    definitely-stale case.)"""
+    now = 10_000.0
     path = _write_cache(tmp_path, {
-        "captured_at": 950.0,
-        "five_hour": {"used_percentage": 92.0, "resets_at": 500.0},  # past
-        "seven_day": {"used_percentage": 30.0, "resets_at": 99999.0},
+        "captured_at": now - 100,
+        # 45 min past — beyond grace
+        "five_hour": {"used_percentage": 92.0, "resets_at": now - 45 * 60},
+        "seven_day": {"used_percentage": 30.0, "resets_at": now + 99999},
     })
     with patch("quota_monitor.probes.precise.read_claude_hud") as hud:
         hud.return_value = _hud()

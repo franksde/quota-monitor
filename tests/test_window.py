@@ -72,34 +72,34 @@ def test_replay_windows_correction_zero():
 
 # --- regression: the original future-reset bug ---
 
-def test_regression_future_reset_in_state_does_not_silence_alerts():
-    """Original bug scenario: state has alerted_for_reset = future timestamp.
-    Under Full Replay, state never feeds back into counting, so the algorithm
-    happily computes the real latest window and triggers an alert.
+def test_regression_corrupt_state_does_not_silence_alerts():
+    """Original bug scenario: state has alerted_for_reset = some unrelated
+    timestamp (e.g. a future drift from earlier broken code). Under the new
+    "recovered" alert model the dedupe key is alerted_for_reset == int(reset),
+    which still won't match a stale random value — so alert fires normally.
     """
-    now = 1000.0
-    future = now + 120
-    state = State(claude=ClaudeState(alerted_for_reset=int(future)))
-    ts = (now - 3600, now - 1800, now - 1200, now - 600, now - 60)
-    w = replay_windows(ts, correction=0.0)
-    assert w is not None
+    reset = 10_000.0
+    state = State(claude=ClaudeState(alerted_for_reset=999_999))  # stale junk
+    w = LatestWindow(start=reset - WINDOW_SECONDS, reset=reset, count=10)
     decisions = decide_alerts(
-        state=state, claude_window=w, codex=None, now=now,
+        state=state, claude_window=w, codex=None, now=reset + 30,
         claude_threshold=5, codex_threshold_percent=30,
     )
     assert len(decisions) == 1
-    assert decisions[0].source == "claude"
-    assert decisions[0].reset_at == int(w.reset)
+    assert decisions[0].reset_at == int(reset)
 
 
 # --- decide_alerts ---
 
-def test_decide_emits_claude_alert_when_threshold_met():
+def test_decide_emits_claude_alert_when_reset_just_passed():
+    """New model: trigger AT reset (not before). User wants to know "quota
+    recovered, you can resume" — matches the alert message wording."""
     state = default_state()
-    reset = 1000.0 + WINDOW_SECONDS + RESET_CORRECTION_SECONDS
-    w = LatestWindow(start=1000.0, reset=reset, count=5)
+    reset = 10_000.0
+    w = LatestWindow(start=reset - WINDOW_SECONDS, reset=reset, count=10)
+    # reset just happened 30 seconds ago
     decisions = decide_alerts(
-        state=state, claude_window=w, codex=None, now=1010.0,
+        state=state, claude_window=w, codex=None, now=reset + 30,
         claude_threshold=5, codex_threshold_percent=30,
     )
     assert len(decisions) == 1
@@ -107,34 +107,50 @@ def test_decide_emits_claude_alert_when_threshold_met():
     assert decisions[0].reset_at == int(reset)
 
 
-def test_decide_skips_when_below_threshold():
+def test_decide_skips_when_below_threshold_even_at_reset():
     state = default_state()
-    reset = 1000.0 + WINDOW_SECONDS + RESET_CORRECTION_SECONDS
-    w = LatestWindow(start=1000.0, reset=reset, count=3)
+    reset = 10_000.0
+    w = LatestWindow(start=reset - WINDOW_SECONDS, reset=reset, count=3)
     decisions = decide_alerts(
-        state=state, claude_window=w, codex=None, now=1010.0,
+        state=state, claude_window=w, codex=None, now=reset + 30,
         claude_threshold=5, codex_threshold_percent=30,
     )
     assert decisions == []
 
 
-def test_decide_suppresses_repeat_for_same_window():
-    reset = 1000.0 + WINDOW_SECONDS + RESET_CORRECTION_SECONDS
+def test_decide_skips_when_reset_still_in_future():
+    """Reset hasn't happened yet — no "recovered" message to send."""
+    state = default_state()
+    reset = 10_000.0
+    w = LatestWindow(start=reset - WINDOW_SECONDS, reset=reset, count=10)
+    # 1 hour before reset
+    decisions = decide_alerts(
+        state=state, claude_window=w, codex=None, now=reset - 3600,
+        claude_threshold=5, codex_threshold_percent=30,
+    )
+    assert decisions == []
+
+
+def test_decide_suppresses_repeat_for_same_reset():
+    """Already alerted for this reset — don't re-fire even within grace."""
+    reset = 10_000.0
     state = State(claude=ClaudeState(alerted_for_reset=int(reset)))
-    w = LatestWindow(start=1000.0, reset=reset, count=6)
+    w = LatestWindow(start=reset - WINDOW_SECONDS, reset=reset, count=10)
     decisions = decide_alerts(
-        state=state, claude_window=w, codex=None, now=1010.0,
+        state=state, claude_window=w, codex=None, now=reset + 60,
         claude_threshold=5, codex_threshold_percent=30,
     )
     assert decisions == []
 
 
-def test_decide_skips_when_window_already_in_past():
+def test_decide_skips_when_reset_too_far_in_past():
+    """Past the 30-min grace window — user already noticed, don't spam."""
     state = default_state()
-    reset = 1.0 + WINDOW_SECONDS + RESET_CORRECTION_SECONDS
-    w = LatestWindow(start=1.0, reset=reset, count=6)
+    reset = 10_000.0
+    w = LatestWindow(start=reset - WINDOW_SECONDS, reset=reset, count=10)
     decisions = decide_alerts(
-        state=state, claude_window=w, codex=None, now=reset + 10,
+        state=state, claude_window=w, codex=None,
+        now=reset + 45 * 60,  # 45 min after reset > 30 min grace
         claude_threshold=5, codex_threshold_percent=30,
     )
     assert decisions == []
@@ -177,13 +193,14 @@ def test_decide_suppresses_claude_within_cooldown_even_when_reset_drifted():
     """
     state = State(claude=ClaudeState(
         alerted_for_reset=1000,   # previous alert was for some old reset_at
-        cooldown_until=10_000,    # cooldown still active
+        cooldown_until=10_500,    # cooldown still active
     ))
     # current tick: reset_at completely different (algorithm drift) but within cooldown
-    reset = 9_999.0
-    w = LatestWindow(start=4999.0, reset=reset, count=10)
+    reset = 10_000.0
+    w = LatestWindow(start=reset - WINDOW_SECONDS, reset=reset, count=10)
+    # within reset-grace AND within cooldown — cooldown wins
     decisions = decide_alerts(
-        state=state, claude_window=w, codex=None, now=2_000,
+        state=state, claude_window=w, codex=None, now=reset + 60,
         claude_threshold=5, codex_threshold_percent=30,
     )
     assert decisions == []
@@ -192,12 +209,12 @@ def test_decide_suppresses_claude_within_cooldown_even_when_reset_drifted():
 def test_decide_emits_claude_after_cooldown_expires():
     state = State(claude=ClaudeState(
         alerted_for_reset=1000,
-        cooldown_until=2_000,  # cooldown over
+        cooldown_until=9_999,  # cooldown over before reset
     ))
     reset = 10_000.0
-    w = LatestWindow(start=5000.0, reset=reset, count=10)
+    w = LatestWindow(start=reset - WINDOW_SECONDS, reset=reset, count=10)
     decisions = decide_alerts(
-        state=state, claude_window=w, codex=None, now=3_000,
+        state=state, claude_window=w, codex=None, now=reset + 60,
         claude_threshold=5, codex_threshold_percent=30,
     )
     assert len(decisions) == 1

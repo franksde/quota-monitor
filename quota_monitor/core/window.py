@@ -7,6 +7,12 @@ from ..probes import ProbeResult
 WINDOW_SECONDS = 5 * 3600
 # Local logs consistently lag ~5 min behind the official window start.
 RESET_CORRECTION_SECONDS = -5 * 60
+# How long after a reset we still fire the "quota recovered" alert. Matches
+# probes.hud_adapters.RESET_GRACE_SECONDS so the precise-data feed and the
+# alert decision use the same grace. Set conservatively: caches in the chain
+# only refresh on user activity, and the user is usually idle around reset
+# (waiting for quota), so cache freshness can lag 20-30 min.
+RESET_GRACE_SECONDS = 30 * 60
 
 
 @dataclass(frozen=True)
@@ -83,13 +89,19 @@ def decide_alerts(
     decisions: list[AlertDecision] = []
 
     if claude_window is not None:
+        # "Recovered" notification model: fire AT the reset moment (or shortly
+        # after), not before. Matches the alert message wording. The window
+        # was the one that just expired — its `count` describes the usage
+        # that triggered the recovery worth notifying about.
+        reset_at = int(claude_window.reset)
+        age_after_reset = now - claude_window.reset
         if (
             claude_window.count >= claude_threshold
-            and claude_window.reset > now
+            and 0 <= age_after_reset <= RESET_GRACE_SECONDS
             and state.claude.cooldown_until <= now
-            and state.claude.alerted_for_reset != int(claude_window.reset)
+            and state.claude.alerted_for_reset != reset_at
         ):
-            decisions.append(AlertDecision(source="claude", reset_at=int(claude_window.reset)))
+            decisions.append(AlertDecision(source="claude", reset_at=reset_at))
 
     if codex is not None:
         used_percent = int(codex.extra.get("used_percent", 0) or 0)

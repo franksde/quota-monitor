@@ -205,6 +205,10 @@ def test_run_once_writes_alerted_state_on_success(tmp_path):
     cfg_path = _write_config(tmp_path)
     env_path = _write_env(tmp_path)
     state_path = tmp_path / "state.json"
+    # window start = 1000, reset = 1000 + 18000 + (-300) = 18700
+    # new "recovered" model fires when reset has just passed (within 10 min grace)
+    expected_reset = 1000 + WINDOW_SECONDS + RESET_CORRECTION_SECONDS
+    now = expected_reset + 30  # reset just happened 30s ago
     fake_probe_result = MagicMock(source="claude", timestamps=(1000.0,) * 6, extra={})
     with patch("quota_monitor.cli.run.scan_claude", return_value=fake_probe_result), \
          patch("quota_monitor.cli.run.read_precise", return_value=None), \
@@ -216,12 +220,12 @@ def test_run_once_writes_alerted_state_on_success(tmp_path):
         TG.return_value = tg_instance
         rc = run_once(
             config_path=cfg_path, env_path=env_path, state_path=state_path,
-            now=1010.0, dry_run=False,
+            now=float(now), dry_run=False,
         )
     assert rc == 0
     tg_instance.send.assert_called_once()
     saved = json.loads(state_path.read_text())
-    assert saved["claude"]["alerted_for_reset"] == 1000 + WINDOW_SECONDS + RESET_CORRECTION_SECONDS
+    assert saved["claude"]["alerted_for_reset"] == expected_reset
     sent_alert = tg_instance.send.call_args.args[0]
     assert "estimated from local conversation logs" in sent_alert.body
 
@@ -299,9 +303,12 @@ def test_run_once_uses_precise_when_cache_valid(tmp_path, capsys):
     cache_path = tmp_path / "rate_limits_cache.json"
     calibration_path = tmp_path / "calibration.json"
     now = 10_000.0
+    # New "recovered" model: reset_at must be in the [now-grace, now] window
+    # (or strictly equal-ish to now) for the alert to fire.
+    reset_at = now - 30  # reset just happened
     cache_path.write_text(json.dumps({
         "captured_at": now - 60,
-        "five_hour": {"used_percentage": 80.0, "resets_at": now + 3600},
+        "five_hour": {"used_percentage": 80.0, "resets_at": reset_at},
         "seven_day": {"used_percentage": 30.0, "resets_at": now + 86400},
     }))
 
@@ -319,7 +326,7 @@ def test_run_once_uses_precise_when_cache_valid(tmp_path, capsys):
         )
 
     assert rc == 0
-    assert f"reset_at={int(now + 3600)}" in capsys.readouterr().out
+    assert f"reset_at={int(reset_at)}" in capsys.readouterr().out
 
 
 def test_run_once_skips_precise_alert_below_threshold(tmp_path, capsys):
@@ -359,9 +366,10 @@ def test_run_once_precise_alert_omits_estimated_suffix(tmp_path):
     cache_path = tmp_path / "rate_limits_cache.json"
     calibration_path = tmp_path / "calibration.json"
     now = 10_000.0
+    reset_at = now - 30  # just-passed reset triggers under new model
     cache_path.write_text(json.dumps({
         "captured_at": now - 60,
-        "five_hour": {"used_percentage": 80.0, "resets_at": now + 3600},
+        "five_hour": {"used_percentage": 80.0, "resets_at": reset_at},
         "seven_day": {"used_percentage": 30.0, "resets_at": now + 86400},
     }))
 

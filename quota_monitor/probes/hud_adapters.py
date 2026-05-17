@@ -23,6 +23,18 @@ from pathlib import Path
 from typing import Optional
 
 
+# Allow data that describes a reset within this many seconds in the past.
+# All caches in the chain (claude-hud, our own wrapper) are passive: they
+# only refresh when the user is active in Claude Code. The user is typically
+# idle around reset time (they've burned the window and are waiting), so
+# nobody re-polls Anthropic — cache freshness can lag 30+ minutes past the
+# actual reset moment. The reset *value* in the cache is a hard fact and
+# doesn't decay, so generously honour data that describes a reset up to
+# 30 minutes ago. This is also the upper bound for how late a "quota
+# recovered" notification still feels useful (vs. spammy).
+RESET_GRACE_SECONDS = 30 * 60
+
+
 @dataclass(frozen=True)
 class HudUsageData:
     five_hour_pct: float
@@ -75,9 +87,11 @@ def read_claude_hud(now: float, *, home: Optional[Path] = None) -> Optional[HudU
     if five_hour_resets_at is None or seven_day_resets_at is None:
         return None
 
-    # The only freshness gate: 5h reset must still be in the future.
-    # captured_at age is intentionally NOT checked — see module docstring.
-    if five_hour_resets_at <= now:
+    # Reset must still be in the future, OR very recently past (grace).
+    # Without the grace, every reset event creates a dead window of up to
+    # 5 minutes where precise data is unreachable and the "recovered"
+    # alert can't fire.
+    if five_hour_resets_at < now - RESET_GRACE_SECONDS:
         return None
 
     return HudUsageData(

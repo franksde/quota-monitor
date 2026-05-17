@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from .hud_adapters import read_claude_hud
+from .hud_adapters import RESET_GRACE_SECONDS, read_claude_hud
 
 MAX_CACHE_AGE_SECONDS = 6 * 3600
 
@@ -37,7 +37,9 @@ def _read_own_cache(cache_path: Path, *, now: float) -> Optional[PreciseUsage]:
         return None
 
     resets_at = five_hour.get("resets_at", 0)
-    if resets_at <= now:
+    # Same grace as HUD adapter: a reset that just happened should still
+    # surface the data so "recovered" alerts can fire (see hud_adapters.py).
+    if resets_at < now - RESET_GRACE_SECONDS:
         return None
 
     seven_day = raw.get("seven_day") or {}

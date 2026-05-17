@@ -215,15 +215,19 @@ def run_once(
         outcome = dispatch_alert(alert, primary=primary, fallback=fallback)
         if outcome in (DispatchOutcome.PRIMARY_SUCCESS, DispatchOutcome.FALLBACK_SUCCESS):
             if d.source == "claude":
-                # 4h cooldown — slightly under the 5h window so a real next
-                # reset can still fire. Cooldown anchored to wall-clock time
-                # (not d.reset_at) because the algorithm's reset_at can drift
-                # by hours under third-party routing; trusting it for
-                # cooldown would re-open the spam window.
+                # Cooldown anchored to reset_at + 30 min grace (= same window
+                # decide_alerts honours), NOT wall-clock 4h. Wall-clock 4h can
+                # straddle the next real reset and silently swallow the next
+                # legitimate "recovered" alert (hit in the wild 2026-05-17:
+                # 4h cooldown set at 20:08 ate the 21:10 reset notification).
+                # Anchoring to reset_at means cooldown naturally expires
+                # before the next window's reset (5h away). max(..., now+1h)
+                # defends against algorithm reset_at drift on the estimated path.
+                cooldown_target = max(d.reset_at + 30 * 60, int(now) + 3600)
                 new_state = replace(new_state, claude=replace(
                     new_state.claude,
                     alerted_for_reset=d.reset_at,
-                    cooldown_until=int(now) + 4 * 3600,
+                    cooldown_until=cooldown_target,
                 ))
             elif d.source == "codex":
                 new_state = replace(new_state, codex=replace(
