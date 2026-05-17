@@ -22,6 +22,9 @@ class ClaudeState:
 class CodexState:
     alerted_for_reset: int = 0
     cooldown_until: int = 0
+    last_fetch_at: int = 0
+    last_used_percent: int = 0
+    last_reset_at: int = 0
 
 
 @dataclass(frozen=True)
@@ -57,10 +60,18 @@ def load_state(path: Path) -> State:
         # (current_window_start / current_window_reset) that may exist in older state files.
         claude_block = {k: v for k, v in (raw.get("claude") or {}).items()
                         if k in {"alerted_for_reset", "cooldown_until"}}
+        codex_block = {k: v for k, v in (raw.get("codex") or {}).items()
+                       if k in {
+                           "alerted_for_reset",
+                           "cooldown_until",
+                           "last_fetch_at",
+                           "last_used_percent",
+                           "last_reset_at",
+                       }}
         return State(
             schema_version=raw.get("schema_version", SCHEMA_VERSION),
             claude=ClaudeState(**claude_block),
-            codex=CodexState(**(raw.get("codex") or {})),
+            codex=CodexState(**codex_block),
             keepalive=KeepaliveState(
                 last_seamless_scheduled_for=(raw.get("keepalive") or {}).get("last_seamless_scheduled_for", 0),
                 phrase_pool_used_indices=tuple((raw.get("keepalive") or {}).get("phrase_pool_used_indices", [])),
