@@ -4,14 +4,20 @@
 
 ```python
 from dataclasses import dataclass
-from typing import Protocol, runtime_checkable
+from typing import Optional, Protocol, runtime_checkable
 
 @dataclass(frozen=True)
 class Alert:
     title: str
     body: str
-    reset_at: int
-    source: str
+    reset_at: int           # epoch seconds; relays use this to schedule delivery
+    source: str             # "claude" | "codex"
+    schedule_id: Optional[str] = None
+    # Stable identity for "the same logical recovered alert". Used by relay
+    # notifiers (currently only cloudflare_relay) that can defer delivery:
+    # a later send() with the same schedule_id supersedes the earlier queued
+    # message. Notifiers that send immediately (telegram, macos_native) can
+    # ignore this field.
 
 class Notifier(Protocol):
     name: str
