@@ -25,10 +25,8 @@ webhook_url = ""           # setup wizard writes this after deploy
 
 [keepalive]                # see README §Risks
 enabled = false
-strategy = "polling"       # "polling" | "seamless"
+strategy = "seamless"
 model = "haiku"
 phrase_pool = []           # empty = builtin DEFAULT_PHRASES; users may override
-
-# only used when strategy = "seamless"
 seamless_trigger_minutes = 30
 seamless_buffer_seconds = 60

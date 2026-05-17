@@ -37,7 +37,7 @@ class NotifiersConfig:
 @dataclass(frozen=True)
 class KeepaliveConfig:
     enabled: bool = False
-    strategy: str = "polling"  # "polling" | "seamless"
+    strategy: str = "seamless"
     model: str = "haiku"
     phrase_pool: tuple[str, ...] = ()
     seamless_trigger_minutes: int = 30
@@ -54,5 +54,5 @@ class Config:
     secrets: dict[str, str] = field(default_factory=dict)
 
 
-VALID_STRATEGIES = ("polling", "seamless")
+VALID_STRATEGIES = ("seamless",)
 VALID_LOCALES = ("en", "zh")

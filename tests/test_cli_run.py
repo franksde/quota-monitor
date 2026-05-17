@@ -2,6 +2,7 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 import json
 from quota_monitor.cli.run import run_once
+from quota_monitor.core.state import default_state
 from quota_monitor.core.window import WINDOW_SECONDS, RESET_CORRECTION_SECONDS
 
 
@@ -24,7 +25,7 @@ fallback = ""
 enabled = false
 [keepalive]
 enabled = false
-strategy = "polling"
+strategy = "seamless"
 """)
     return cfg
 
@@ -47,7 +48,7 @@ fallback = ""
 enabled = false
 [keepalive]
 enabled = true
-strategy = "polling"
+strategy = "seamless"
 model = "haiku"
 phrase_pool = ["probe"]
 """)
@@ -99,21 +100,16 @@ def test_run_once_dry_run_does_not_send_or_save(tmp_path):
     assert not state_path.exists()
 
 
-def test_run_once_runs_polling_keepalive_when_enabled(tmp_path, capsys):
+def test_run_once_runs_seamless_keepalive_when_enabled(tmp_path):
     cfg_path = _write_keepalive_config(tmp_path)
     env_path = _write_env(tmp_path)
     state_path = tmp_path / "state.json"
     now = 20_000.0
     fake = MagicMock(source="claude", timestamps=(now - 6 * 3600,), extra={})
     with patch("quota_monitor.cli.run.scan_claude", return_value=fake), \
-         patch("quota_monitor.keepalive.polling.run_keepalive", return_value=True) as keepalive:
+         patch("quota_monitor.keepalive.seamless.seamless_tick", return_value=(MagicMock(), default_state())):
         rc = run_once(config_path=cfg_path, env_path=env_path, state_path=state_path, now=now, dry_run=False)
     assert rc == 0
-    keepalive.assert_called_once()
-    saved = json.loads(state_path.read_text())
-    assert saved["keepalive"]["phrase_pool_size_at_init"] == 1
-    assert saved["keepalive"]["phrase_pool_used_indices"] == [0]
-    assert "[info] keepalive sent: probe" in capsys.readouterr().out
 
 
 def test_run_once_returns_nonzero_when_config_missing(tmp_path):

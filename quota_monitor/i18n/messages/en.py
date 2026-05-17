@@ -31,11 +31,9 @@ MESSAGES = {
     "wizard.step5.deploying": "\nDeploying worker...",
     "wizard.step6.title": "\n=== (6/8) Keepalive ===",
     "wizard.step6.enable": "Enable keepalive?",
-    "wizard.step6.strategy": "Strategy:",
     "wizard.step7.title": "\n=== (8/8) Schedule install ===",
     "wizard.step7.install": "Install scheduler:",
     "wizard.step7.install.options": ["LaunchAgent (recommended)", "Print crontab line only", "Skip"],
-    "wizard.step6.strategy.options": ["polling - send scheduled requests (default)", "seamless - silent background swap before reset (advanced)"],
     "wizard.step3.primary.options": ["telegram (direct - fails if Mac sleeps)", "macos_native", "cloudflare_relay (advanced - cloud scheduled, Mac can sleep)"],
     "wizard.step3.fallback.options": ["macos_native", "(none)"],
     "wizard.complete": "Setup complete. First scan in ~5 minutes.",
@@ -43,7 +41,7 @@ MESSAGES = {
         "ℹ️ Keepalive sends automated requests to Claude Code to keep your 5-hour quota window active.\n"
         "⚠️ Risks & Limitations:\n"
         "  1. ToS — Anthropic AUP may classify automated keepalive as abuse.\n"
-        "  2. Sleep — both polling and seamless strategies stop working while macOS sleeps.\n"
+        "  2. Sleep — seamless strategy stops working while macOS sleeps.\n"
         "     The natural 5h reset still happens; keepalive cannot save it if the Mac is asleep.\n"
     ),
     "wizard.statusline.title": "\n=== ({step}) StatusLine Precise Usage Tracking ===",

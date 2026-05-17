@@ -13,7 +13,7 @@ from ._preflight import preflight_check
 
 def _render_config(answers: dict) -> str:
     keepalive_enabled = "true" if answers.get("keepalive_enabled") else "false"
-    keepalive_strategy = answers.get("keepalive_strategy", "polling")
+    keepalive_strategy = answers.get("keepalive_strategy", "seamless")
     primary = answers.get("primary", "telegram")
     fallback = answers.get("fallback", "")
     cf_enabled = "true" if answers.get("cloudflare_enabled") else "false"
@@ -174,8 +174,7 @@ def _collect_interactive_answers(*, existing_secrets: Optional[dict[str, str]] =
     print(t("wizard.keepalive.warning"))
     answers["keepalive_enabled"] = ask_yes_no(t("wizard.step6.enable"), default=False)
     if answers["keepalive_enabled"]:
-        idx = ask_choice(t("wizard.step6.strategy"), t("wizard.step6.strategy.options"), default=0)
-        answers["keepalive_strategy"] = "polling" if idx == 0 else "seamless"
+        answers["keepalive_strategy"] = "seamless"
 
     print(t("wizard.statusline.title", step="7/8"))
     from ..platform import paths as platform_paths

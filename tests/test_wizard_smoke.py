@@ -84,7 +84,7 @@ def test_wizard_aborts_when_preflight_missing_required(tmp_path):
 def test_wizard_keepalive_enabled_writes_strategy(tmp_path):
     answers = json.loads((FIXTURES / "wizard_answers_basic.json").read_text())
     answers["keepalive_enabled"] = True
-    answers["keepalive_strategy"] = "polling"
+    answers["keepalive_strategy"] = "seamless"
     with patch("quota_monitor.cli.setup.preflight_check", return_value=([], [])):
         rc = run_wizard(
             answers=answers,
@@ -94,5 +94,5 @@ def test_wizard_keepalive_enabled_writes_strategy(tmp_path):
             non_interactive=True,
         )
     assert rc == 0
-    assert 'strategy = "polling"' in (tmp_path / "config.toml").read_text()
+    assert 'strategy = "seamless"' in (tmp_path / "config.toml").read_text()
     assert "enabled = true" in (tmp_path / "config.toml").read_text()

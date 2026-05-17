@@ -22,7 +22,7 @@ webhook_url = ""
 
 [keepalive]
 enabled = false
-strategy = "polling"
+strategy = "seamless"
 model = "haiku"
 phrase_pool = []
 seamless_trigger_minutes = 30

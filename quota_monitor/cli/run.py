@@ -173,19 +173,7 @@ def run_once(
         claude_cli = shutil.which("claude") or str(Path.home() / ".local" / "bin" / "claude")
         shell = "/bin/zsh"
         idle_seconds = cfg.probes.claude.window_hours * 3600
-        if cfg.keepalive.strategy == "polling":
-            from ..keepalive.polling import polling_tick
-            _, new_state = polling_tick(
-                state=new_state,
-                now=now,
-                timestamps=timestamps,
-                idle_seconds=idle_seconds,
-                claude_cli=claude_cli,
-                shell=shell,
-                model=cfg.keepalive.model,
-                phrase_pool=cfg.keepalive.phrase_pool,
-            )
-        elif cfg.keepalive.strategy == "seamless":
+        if cfg.keepalive.strategy == "seamless":
             from ..keepalive.seamless import seamless_tick
             _, new_state = seamless_tick(
                 state=new_state,

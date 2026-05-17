@@ -17,7 +17,7 @@ def test_loads_valid_config(tmp_path, monkeypatch):
     assert cfg.notifiers.primary == "telegram"
     assert cfg.notifiers.fallback == "macos_native"
     assert cfg.keepalive.enabled is False
-    assert cfg.keepalive.strategy == "polling"
+    assert cfg.keepalive.strategy == "seamless"
     assert cfg.secrets["TELEGRAM_BOT_TOKEN"] == "tok"
     assert cfg.secrets["TELEGRAM_CHAT_ID"] == "cid"
 
