@@ -363,6 +363,10 @@ def run_once(
         idle_seconds = cfg.probes.claude.window_hours * 3600
         if cfg.keepalive.strategy == "seamless":
             from ..keepalive.seamless import seamless_tick
+            # Pass the precise/HUD-sourced anchor so seamless picks the right
+            # moment to fire — otherwise it falls back to replay_windows
+            # estimate which can drift hours from reality.
+            known_reset = state.claude.last_known_good_reset_at or None
             _, new_state = seamless_tick(
                 state=new_state,
                 now=now,
@@ -373,6 +377,7 @@ def run_once(
                 phrase_pool=cfg.keepalive.phrase_pool,
                 trigger_minutes=cfg.keepalive.seamless_trigger_minutes,
                 buffer_seconds=cfg.keepalive.seamless_buffer_seconds,
+                known_reset_at=known_reset,
             )
 
     save_state(state_path, new_state)

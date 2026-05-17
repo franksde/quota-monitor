@@ -10,7 +10,7 @@ from dataclasses import replace
 from typing import Optional, Sequence
 
 from ..core.state import State
-from ..core.window import replay_windows
+from ..core.window import WINDOW_SECONDS, LatestWindow, replay_windows
 from .phrases import PhraseState, pick_phrase
 
 
@@ -55,8 +55,28 @@ def seamless_tick(
     phrase_pool: Sequence[str],
     trigger_minutes: int,
     buffer_seconds: int,
+    known_reset_at: Optional[float] = None,
 ) -> tuple[SeamlessDecision, State]:
-    window = replay_windows(timestamps, correction=0.0)
+    # Prefer a precise/HUD-sourced reset anchor over the local replay
+    # estimate. replay_windows can be off by hours under continuous-but-
+    # window-shifted activity, which would fire keepalive far too early
+    # (observed in the wild: estimated reset 00:08, real reset 02:10 →
+    # keepalive triggers at 23:38, ~2.5h before the actual window end).
+    # Only honour the anchor when it's in a plausible band: in the future,
+    # but not beyond one full window away.
+    window: Optional[LatestWindow] = None
+    if (
+        known_reset_at is not None
+        and known_reset_at > now
+        and known_reset_at - now <= WINDOW_SECONDS
+    ):
+        window = LatestWindow(
+            start=known_reset_at - WINDOW_SECONDS,
+            reset=known_reset_at,
+            count=1,  # count irrelevant for seamless's time-to-reset decision
+        )
+    if window is None:
+        window = replay_windows(timestamps, correction=0.0)
     if window is None:
         return SeamlessDecision.SKIP_NO_WINDOW, state
     time_to_reset = window.reset - now

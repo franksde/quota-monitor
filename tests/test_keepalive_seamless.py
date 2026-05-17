@@ -100,3 +100,94 @@ def test_skip_expired_when_only_old_activity():
         trigger_minutes=30, buffer_seconds=60,
     )
     assert decision is SeamlessDecision.SKIP_EXPIRED
+
+
+# --- known_reset_at takes precedence over replay_windows estimate ---
+
+def test_uses_known_reset_when_provided_and_in_future(tmp_path):
+    """precise/HUD anchor cached in state.claude.last_known_good_reset_at
+    must beat the noisy replay estimate. Regression: without this, a 5h
+    window with continuous-but-shifted activity made seamless_tick fire
+    keepalive ~2.5h early because estimated reset drifted left."""
+    now = 10_000.0
+    # estimated would compute reset = (now - WINDOW_SECONDS + 500) + WINDOW_SECONDS = now + 500
+    # so trigger-minutes window check passes either way; we need the
+    # delay calc + scheduled_for value to use known_reset, not estimated.
+    ts = (now - WINDOW_SECONDS + 500,)
+    estimated_reset = (now - WINDOW_SECONDS + 500) + WINDOW_SECONDS  # = now + 500
+    known_reset = now + 800   # 5 min later than estimate; still within trigger window
+
+    with patch("quota_monitor.keepalive.seamless._find_tmux", return_value="/opt/homebrew/bin/tmux"), \
+         patch("quota_monitor.keepalive.seamless.subprocess.run") as run:
+        run.return_value.returncode = 0
+        decision, new_state = seamless_tick(
+            state=State(), now=now, timestamps=ts,
+            claude_cli="/c", shell="/sh", model="haiku", phrase_pool=("a",),
+            trigger_minutes=30, buffer_seconds=60,
+            known_reset_at=known_reset,
+        )
+    assert decision is SeamlessDecision.SCHEDULED
+    # scheduled_for must be the known reset, not the estimate
+    assert new_state.keepalive.last_seamless_scheduled_for == int(known_reset)
+    # tmux sleep arg derived from known_reset, not estimated_reset
+    payload = run.call_args[0][0][-1]
+    expected_delay = int(known_reset - now) + 60  # buffer_seconds
+    assert f"sleep {expected_delay} " in payload
+
+
+def test_falls_back_to_estimate_when_known_reset_is_none():
+    now = 10_000.0
+    ts = (now - WINDOW_SECONDS + 500,)
+    with patch("quota_monitor.keepalive.seamless._find_tmux", return_value="/opt/homebrew/bin/tmux"), \
+         patch("quota_monitor.keepalive.seamless.subprocess.run") as run:
+        run.return_value.returncode = 0
+        decision, new_state = seamless_tick(
+            state=State(), now=now, timestamps=ts,
+            claude_cli="/c", shell="/sh", model="haiku", phrase_pool=("a",),
+            trigger_minutes=30, buffer_seconds=60,
+            known_reset_at=None,
+        )
+    assert decision is SeamlessDecision.SCHEDULED
+    # falls back to estimated reset
+    estimated_reset = (now - WINDOW_SECONDS + 500) + WINDOW_SECONDS
+    assert new_state.keepalive.last_seamless_scheduled_for == int(estimated_reset)
+
+
+def test_falls_back_to_estimate_when_known_reset_is_in_past():
+    """Stale anchor from a previous window — don't trust it."""
+    now = 10_000.0
+    ts = (now - WINDOW_SECONDS + 500,)
+    stale_known = now - 100  # in the past
+    with patch("quota_monitor.keepalive.seamless._find_tmux", return_value="/opt/homebrew/bin/tmux"), \
+         patch("quota_monitor.keepalive.seamless.subprocess.run") as run:
+        run.return_value.returncode = 0
+        decision, new_state = seamless_tick(
+            state=State(), now=now, timestamps=ts,
+            claude_cli="/c", shell="/sh", model="haiku", phrase_pool=("a",),
+            trigger_minutes=30, buffer_seconds=60,
+            known_reset_at=stale_known,
+        )
+    assert decision is SeamlessDecision.SCHEDULED
+    estimated_reset = (now - WINDOW_SECONDS + 500) + WINDOW_SECONDS
+    assert new_state.keepalive.last_seamless_scheduled_for == int(estimated_reset)
+
+
+def test_falls_back_to_estimate_when_known_reset_too_far_in_future():
+    """Anchor more than one full window away — almost certainly stale
+    (e.g. last_known_good_reset_at was set, then user idled past 2 resets
+    without any new precise data). Drop back to current local replay."""
+    now = 10_000.0
+    ts = (now - WINDOW_SECONDS + 500,)
+    far_known = now + 2 * WINDOW_SECONDS  # 10 hours from now
+    with patch("quota_monitor.keepalive.seamless._find_tmux", return_value="/opt/homebrew/bin/tmux"), \
+         patch("quota_monitor.keepalive.seamless.subprocess.run") as run:
+        run.return_value.returncode = 0
+        decision, new_state = seamless_tick(
+            state=State(), now=now, timestamps=ts,
+            claude_cli="/c", shell="/sh", model="haiku", phrase_pool=("a",),
+            trigger_minutes=30, buffer_seconds=60,
+            known_reset_at=far_known,
+        )
+    assert decision is SeamlessDecision.SCHEDULED
+    estimated_reset = (now - WINDOW_SECONDS + 500) + WINDOW_SECONDS
+    assert new_state.keepalive.last_seamless_scheduled_for == int(estimated_reset)
