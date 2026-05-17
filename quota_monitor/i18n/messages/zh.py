@@ -37,6 +37,7 @@ MESSAGES = {
     "wizard.step3.primary.options": ["telegram (直连 - 电脑休眠时失效)", "macos_native (本地通知)", "cloudflare_relay (高级 - 云端延迟发送，电脑可休眠)"],
     "wizard.step3.fallback.options": ["macos_native (本地通知)", "(无)"],
     "wizard.complete": "配置完成。约 5 分钟后首次扫描。",
+    "wizard.test_scheduled": "测试消息已调度 — 约 5 秒后通过 Telegram 送达。",
     "wizard.keepalive.warning": (
         "ℹ️ 防休眠 (Keepalive) 的作用是自动发送请求，为你保活 Claude Code 的 5 小时额度窗口。\n"
         "⚠️ 风险与限制:\n"

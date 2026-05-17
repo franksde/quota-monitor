@@ -270,4 +270,22 @@ def run_wizard(
 
     set_locale(answers.get("locale", "en"))
     print(t("wizard.complete"))
+
+    # Schedule a test message via CF Queue (arrives in ~5 seconds).
+    if answers.get("primary") == "cloudflare_relay" and answers.get("cloudflare_webhook_url"):
+        import json
+        import time
+        import urllib.request
+        url = answers["cloudflare_webhook_url"]
+        payload = json.dumps({
+            "reset_time_epoch": int(time.time()) + 5,
+            "message": "QuotaMonitor setup test — CF Queue delivery is working!",
+        }).encode()
+        try:
+            req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+            urllib.request.urlopen(req, timeout=10)
+            print(t("wizard.test_scheduled"))
+        except Exception as e:
+            print(f"[warn] test message scheduling failed: {e}", file=sys.stderr)
+
     return 0

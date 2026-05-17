@@ -37,6 +37,7 @@ MESSAGES = {
     "wizard.step3.primary.options": ["telegram (direct - fails if Mac sleeps)", "macos_native", "cloudflare_relay (advanced - cloud scheduled, Mac can sleep)"],
     "wizard.step3.fallback.options": ["macos_native", "(none)"],
     "wizard.complete": "Setup complete. First scan in ~5 minutes.",
+    "wizard.test_scheduled": "Test message scheduled — it will arrive via Telegram in ~5 seconds.",
     "wizard.keepalive.warning": (
         "ℹ️ Keepalive sends automated requests to Claude Code to keep your 5-hour quota window active.\n"
         "⚠️ Risks & Limitations:\n"
