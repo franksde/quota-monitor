@@ -6,9 +6,50 @@ from pathlib import Path
 
 from . import ProbeResult
 
+LOCAL_COMMAND_MARKERS = (
+    "<command-name>",
+    "<command-message>",
+    "<command-args>",
+    "<local-command-caveat>",
+    "<local-command-stdout>",
+)
+
 
 def _iso_to_epoch(ts: str) -> float:
     return datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
+
+
+def _contains_local_command_marker(value) -> bool:
+    if isinstance(value, str):
+        return any(marker in value for marker in LOCAL_COMMAND_MARKERS)
+    if isinstance(value, list):
+        return any(_contains_local_command_marker(item) for item in value)
+    if isinstance(value, dict):
+        return any(_contains_local_command_marker(item) for item in value.values())
+    return False
+
+
+def _contains_tool_result(value) -> bool:
+    if isinstance(value, list):
+        return any(isinstance(item, dict) and item.get("type") == "tool_result" for item in value)
+    return False
+
+
+def _has_following_assistant_request(records: list[dict], index: int) -> bool:
+    for rec in records[index + 1:]:
+        if rec.get("type") == "assistant":
+            return bool(rec.get("requestId"))
+        if rec.get("type") == "user":
+            return False
+    return False
+
+
+def _is_uncounted_local_command(records: list[dict], index: int) -> bool:
+    message = records[index].get("message") or {}
+    content = message.get("content") if isinstance(message, dict) else None
+    if _contains_tool_result(content):
+        return False
+    return _contains_local_command_marker(content) and not _has_following_assistant_request(records, index)
 
 
 def scan_claude(*, app_dir: Path, cli_dir: Path, costs_file: Path, now: float, window_seconds: int) -> ProbeResult:
@@ -41,28 +82,32 @@ def scan_claude(*, app_dir: Path, cli_dir: Path, costs_file: Path, now: float, w
         try:
             if os.path.getmtime(fpath) < window_start:
                 continue
+            records = []
             with open(fpath, encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
                     if not line:
                         continue
                     try:
-                        rec = json.loads(line)
+                        records.append(json.loads(line))
                     except json.JSONDecodeError:
                         continue
-                    if rec.get("type") != "user":
-                        continue
-                    if (rec.get("message") or {}).get("role") != "user":
-                        continue
-                    ts_str = rec.get("timestamp")
-                    if not ts_str:
-                        continue
-                    try:
-                        ts = _iso_to_epoch(ts_str)
-                    except ValueError:
-                        continue
-                    if ts >= window_start:
-                        out.append(ts)
+            for index, rec in enumerate(records):
+                if rec.get("type") != "user":
+                    continue
+                if (rec.get("message") or {}).get("role") != "user":
+                    continue
+                if _is_uncounted_local_command(records, index):
+                    continue
+                ts_str = rec.get("timestamp")
+                if not ts_str:
+                    continue
+                try:
+                    ts = _iso_to_epoch(ts_str)
+                except ValueError:
+                    continue
+                if ts >= window_start:
+                    out.append(ts)
         except OSError:
             continue
 

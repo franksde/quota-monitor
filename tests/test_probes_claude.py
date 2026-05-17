@@ -77,6 +77,27 @@ def test_counts_tool_result_wrappers(tmp_path):
     assert 1778846405.0 in result.timestamps   # tool_result also counts
 
 
+def test_excludes_local_command_without_assistant_request(tmp_path):
+    cli = tmp_path / "projects" / "x"
+    cli.mkdir(parents=True)
+    f = cli / "session.jsonl"
+    f.write_text(
+        '{"type":"user","message":{"role":"user","content":"real prompt"},"timestamp":"2026-05-15T12:00:00Z"}\n'
+        '{"type":"assistant","message":{"role":"assistant","content":"ok"},"requestId":"req_real","timestamp":"2026-05-15T12:00:03Z"}\n'
+        '{"type":"user","message":{"role":"user","content":"<local-command-caveat>generated locally</local-command-caveat>"},"timestamp":"2026-05-15T12:10:00Z"}\n'
+        '{"type":"user","message":{"role":"user","content":"<command-name>/usage</command-name> <command-message>usage</command-message>"},"timestamp":"2026-05-15T12:10:00Z"}\n'
+        '{"type":"system","content":"<local-command-stdout>You are currently using your subscription</local-command-stdout>","timestamp":"2026-05-15T12:10:00Z"}\n'
+    )
+    result = scan_claude(
+        app_dir=tmp_path / "nope",
+        cli_dir=tmp_path,
+        costs_file=tmp_path / "nope.jsonl",
+        now=1778850000.0,
+        window_seconds=5 * 3600,
+    )
+    assert result.timestamps == (1778846400.0,)
+
+
 def test_ignores_costs_jsonl(tmp_path):
     """costs.jsonl is not a reliable activity source: for cc-switch / third-party
     users every line is a `model=unknown, tokens=0` placeholder. Even when populated
