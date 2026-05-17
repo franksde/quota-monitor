@@ -1,0 +1,5 @@
+{"type":"user","message":{"role":"user","content":[{"text":"Start.","type":"text"}]},"timestamp":"2026-05-16T20:47:23.605Z"}
+{"type":"user","message":{"role":"user","content":"handoff prompt"},"timestamp":"2026-05-17T00:44:02.457Z"}
+{"type":"assistant","message":{"role":"assistant","content":"ok"},"requestId":"req_011Cb7DRVKAZjbk2thga9NM8","timestamp":"2026-05-17T00:44:13.687Z"}
+{"type":"user","message":{"role":"user","content":[{"content":"tool output","type":"tool_result","tool_use_id":"toolu_01"}]},"timestamp":"2026-05-17T01:47:51.634Z"}
+{"type":"user","message":{"role":"user","content":"later debugging prompt"},"timestamp":"2026-05-17T05:52:25.657Z"}

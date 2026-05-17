@@ -56,6 +56,21 @@ def replay_windows(
     return LatestWindow(start=start, reset=reset + actual_correction, count=count)
 
 
+def window_from_known_reset(timestamps: tuple[float, ...], *, reset_at: float) -> Optional[LatestWindow]:
+    """Build the known official 5h window from a precise reset timestamp.
+
+    This is intentionally not a replacement for precise data. It is a fallback
+    anchor for periods where precise data was recently known, then temporarily
+    unavailable. The reset timestamp is already official, so no local-log
+    correction is applied.
+    """
+    start = reset_at - WINDOW_SECONDS
+    count = sum(1 for ts in timestamps if start <= ts < reset_at)
+    if count == 0:
+        return None
+    return LatestWindow(start=start, reset=reset_at, count=count)
+
+
 def decide_alerts(
     *,
     state: State,

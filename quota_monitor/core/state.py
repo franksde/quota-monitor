@@ -12,10 +12,12 @@ class ClaudeState:
     """Minimal: tracks which reset point has been alerted, and a cooldown so
     that a noisy reset_at value (replay_windows is sensitive to scan-window
     boundary slide) can't trigger repeat pushes for the same underlying window.
-    Never stores window start/reset — those come from Full Replay each tick.
+    last_known_good_reset_at is only populated from precise/HUD data; replay
+    estimates never feed it.
     """
     alerted_for_reset: int = 0
     cooldown_until: int = 0
+    last_known_good_reset_at: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -59,7 +61,7 @@ def load_state(path: Path) -> State:
         # Backward-compatibility: silently ignore obsolete ClaudeState fields
         # (current_window_start / current_window_reset) that may exist in older state files.
         claude_block = {k: v for k, v in (raw.get("claude") or {}).items()
-                        if k in {"alerted_for_reset", "cooldown_until"}}
+                        if k in {"alerted_for_reset", "cooldown_until", "last_known_good_reset_at"}}
         codex_block = {k: v for k, v in (raw.get("codex") or {}).items()
                        if k in {
                            "alerted_for_reset",

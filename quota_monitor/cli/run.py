@@ -8,8 +8,8 @@ from typing import Optional
 from ..config.loader import ConfigError, load_config
 from ..core.calibration import load_calibration, record_sample, save_calibration
 from ..core.dispatch import DispatchOutcome, dispatch_alert
-from ..core.state import ClaudeState, CodexState, load_state, save_state
-from ..core.window import AlertDecision, LatestWindow, decide_alerts, replay_windows
+from ..core.state import CodexState, load_state, save_state
+from ..core.window import AlertDecision, LatestWindow, decide_alerts, replay_windows, window_from_known_reset
 from ..i18n import set_locale, t
 from ..notifiers import Alert, Notifier
 from ..notifiers.cloudflare_relay import CloudflareRelayNotifier
@@ -21,6 +21,8 @@ from ..probes.claude import scan_claude
 from ..probes.codex import CodexAuthMissingError, scan_codex
 from ..probes.precise import read_precise
 from ..statusline.installer import ensure_wrapper_installed
+
+KNOWN_RESET_GRACE_SECONDS = 30 * 60
 
 
 def _build_notifier(name: str, cfg, secrets: dict[str, str]) -> Optional[Notifier]:
@@ -136,9 +138,14 @@ def run_once(
         precise = read_precise(platform_paths.rate_limits_cache(), now=now)
 
     calibration_state = load_calibration(platform_paths.calibration_file())
+    new_state = state
 
     if precise is not None:
         claude_source_type = "precise"
+        new_state = replace(new_state, claude=replace(
+            new_state.claude,
+            last_known_good_reset_at=precise.five_hour_resets_at,
+        ))
         if precise.five_hour_pct >= cfg.probes.claude.precise_threshold_percent:
             claude_window = LatestWindow(
                 start=precise.five_hour_resets_at - (cfg.probes.claude.window_hours * 3600),
@@ -163,14 +170,21 @@ def run_once(
     else:
         # Full Replay: compute the latest Claude window from probe timestamps alone.
         # State never participates in window slicing — see core/window.py docstring.
-        claude_window = (
-            replay_windows(
-                claude_result.timestamps,
-                correction=calibration_state.current_correction_seconds,
-            )
-            if claude_result is not None
-            else None
-        )
+        claude_window = None
+        if claude_result is not None:
+            known_reset = state.claude.last_known_good_reset_at
+            if known_reset and now - KNOWN_RESET_GRACE_SECONDS <= known_reset <= now + (
+                cfg.probes.claude.window_hours * 3600
+            ):
+                claude_window = window_from_known_reset(
+                    claude_result.timestamps,
+                    reset_at=known_reset,
+                )
+            if claude_window is None:
+                claude_window = replay_windows(
+                    claude_result.timestamps,
+                    correction=calibration_state.current_correction_seconds,
+                )
         claude_source_type = "estimated" if claude_window is not None else None
 
     decisions = decide_alerts(
@@ -193,7 +207,6 @@ def run_once(
         print("[error] primary notifier could not be constructed", file=sys.stderr)
         return 3
 
-    new_state = state
     for d in decisions:
         alert = _alert_for(
             d,
@@ -207,7 +220,8 @@ def run_once(
                 # (not d.reset_at) because the algorithm's reset_at can drift
                 # by hours under third-party routing; trusting it for
                 # cooldown would re-open the spam window.
-                new_state = replace(new_state, claude=ClaudeState(
+                new_state = replace(new_state, claude=replace(
+                    new_state.claude,
                     alerted_for_reset=d.reset_at,
                     cooldown_until=int(now) + 4 * 3600,
                 ))
