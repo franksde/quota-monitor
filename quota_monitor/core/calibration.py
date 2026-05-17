@@ -3,7 +3,7 @@ import os
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-DEFAULT_CORRECTION_SECONDS = -360
+DEFAULT_CORRECTION_SECONDS = -300
 EMA_ALPHA = 0.3
 MAX_SAMPLES = 20
 OUTLIER_THRESHOLD_SECONDS = 1800

@@ -11,8 +11,8 @@ from quota_monitor.core.calibration import (
 )
 
 
-def test_default_correction_is_negative_360():
-    assert DEFAULT_CORRECTION_SECONDS == -360
+def test_default_correction_is_negative_300():
+    assert DEFAULT_CORRECTION_SECONDS == -300
 
 
 def test_load_missing_file_returns_defaults(tmp_path):
