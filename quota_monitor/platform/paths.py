@@ -21,12 +21,28 @@ def state_file() -> Path:
     return user_data_dir() / "state.json"
 
 
+def rate_limits_cache() -> Path:
+    return user_data_dir() / "rate_limits_cache.json"
+
+
+def calibration_file() -> Path:
+    return user_data_dir() / "calibration.json"
+
+
+def statusline_original() -> Path:
+    return user_data_dir() / "statusline_original.json"
+
+
 def claude_app_dir() -> Path:
     return Path.home() / "Library" / "Application Support" / "Claude" / "claude-code-sessions"
 
 
 def claude_cli_dir() -> Path:
     return Path.home() / ".claude"
+
+
+def claude_settings_file() -> Path:
+    return claude_cli_dir() / "settings.json"
 
 
 def claude_costs_file() -> Path:
