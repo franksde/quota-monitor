@@ -3,7 +3,6 @@ import random
 import shlex
 import subprocess
 import sys
-import time
 from dataclasses import replace
 from typing import Sequence
 
@@ -17,8 +16,8 @@ class SeamlessDecision(enum.Enum):
     SKIP_OUTSIDE = "skip_outside"               # > trigger minutes left
     SKIP_EXPIRED = "skip_expired"               # window already reset
     SKIP_ALREADY_SCHEDULED = "skip_scheduled"   # already scheduled this reset
-    SCHEDULED = "scheduled"                     # tmux scheduled successfully
-    FAILED = "failed"                           # tmux invocation failed
+    SCHEDULED = "scheduled"                     # detached background sleep+fire scheduled
+    FAILED = "failed"                           # spawn failed
 
 
 def seamless_tick(
@@ -53,19 +52,23 @@ def seamless_tick(
     delay = int(time_to_reset) + buffer_seconds
     quoted_phrase = shlex.quote(phrase)
     inner = (
-        f"{shlex.quote(claude_cli)} -p {quoted_phrase} "
+        f"sleep {delay} && {shlex.quote(claude_cli)} -p {quoted_phrase} "
         f"--model {shlex.quote(model)} --no-session-persistence"
     )
-    session_name = f"qm_keepalive_{int(time.time())}"
-    tmux_cmd = ["tmux", "new-session", "-d", "-s", session_name,
-                f"sleep {delay} && {shell} -lc {shlex.quote(inner)}"]
+    # Detached subprocess: start_new_session puts the child in its own
+    # process group, so when this quota-monitor invocation exits the child
+    # keeps sleeping. Inherited by init like a `nohup ... &`. POSIX-only
+    # primitives; no tmux/at/launchd dependency.
     try:
-        result = subprocess.run(tmux_cmd, capture_output=True, text=True, timeout=10)
-    except (FileNotFoundError, subprocess.TimeoutExpired) as e:
-        print(f"[error] tmux schedule failed: {e}", file=sys.stderr)
-        return SeamlessDecision.FAILED, state
-    if result.returncode != 0:
-        print(f"[error] tmux returned {result.returncode}: {result.stderr.strip()}", file=sys.stderr)
+        subprocess.Popen(
+            [shell, "-lc", inner],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except (FileNotFoundError, OSError) as e:
+        print(f"[error] keepalive spawn failed: {e}", file=sys.stderr)
         return SeamlessDecision.FAILED, state
 
     new_keepalive = replace(
