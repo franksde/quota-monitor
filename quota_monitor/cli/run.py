@@ -6,9 +6,10 @@ from pathlib import Path
 from typing import Optional
 
 from ..config.loader import ConfigError, load_config
+from ..core.calibration import load_calibration, record_sample, save_calibration
 from ..core.dispatch import DispatchOutcome, dispatch_alert
 from ..core.state import ClaudeState, CodexState, load_state, save_state
-from ..core.window import AlertDecision, decide_alerts, replay_windows
+from ..core.window import AlertDecision, LatestWindow, decide_alerts, replay_windows
 from ..i18n import set_locale, t
 from ..notifiers import Alert, Notifier
 from ..notifiers.cloudflare_relay import CloudflareRelayNotifier
@@ -17,6 +18,7 @@ from ..notifiers.telegram import TelegramNotifier
 from ..platform import paths as platform_paths
 from ..probes.claude import scan_claude
 from ..probes.codex import CodexAuthMissingError, scan_codex
+from ..probes.precise import read_precise
 
 
 def _build_notifier(name: str, cfg, secrets: dict[str, str]) -> Optional[Notifier]:
@@ -35,13 +37,16 @@ def _build_notifier(name: str, cfg, secrets: dict[str, str]) -> Optional[Notifie
     return None
 
 
-def _alert_for(decision: AlertDecision) -> Alert:
+def _alert_for(decision: AlertDecision, *, estimated: bool = False) -> Alert:
     label = "Claude" if decision.source == "claude" else "Codex"
     reset_dt = datetime.fromtimestamp(decision.reset_at, tz=timezone.utc)
     reset_human = reset_dt.strftime("%Y-%m-%d %H:%M:%S UTC")
+    body = t("alert.body.recovered", source=label, reset_at_human=reset_human)
+    if estimated:
+        body += t("alert.suffix.estimated")
     return Alert(
         title=t("alert.title.recovered", source=label),
-        body=t("alert.body.recovered", source=label, reset_at_human=reset_human),
+        body=body,
         reset_at=decision.reset_at,
         source=decision.source,
     )
@@ -86,9 +91,44 @@ def run_once(
         except Exception as e:
             print(t("log.probe_failed", source="codex", error=e), file=sys.stderr)
 
-    # Full Replay: compute the latest Claude window from probe timestamps alone.
-    # State never participates in window slicing — see core/window.py docstring.
-    claude_window = replay_windows(claude_result.timestamps) if claude_result is not None else None
+    precise = None
+    if cfg.probes.claude.enabled:
+        precise = read_precise(platform_paths.rate_limits_cache(), now=now)
+
+    calibration_state = load_calibration(platform_paths.calibration_file())
+
+    if precise is not None:
+        claude_source_type = "precise"
+        claude_window = LatestWindow(
+            start=precise.five_hour_resets_at - (cfg.probes.claude.window_hours * 3600),
+            reset=precise.five_hour_resets_at,
+            count=cfg.probes.claude.threshold_turns,
+        )
+
+        if claude_result is not None:
+            computed = replay_windows(claude_result.timestamps, correction=0.0)
+            if computed is not None and computed.reset > now:
+                diff = abs(precise.five_hour_resets_at - computed.reset)
+                if diff < 1800:
+                    calibration_state = record_sample(
+                        calibration_state,
+                        precise_reset=precise.five_hour_resets_at,
+                        computed_reset=computed.reset,
+                        ts=now,
+                    )
+                    save_calibration(platform_paths.calibration_file(), calibration_state)
+    else:
+        # Full Replay: compute the latest Claude window from probe timestamps alone.
+        # State never participates in window slicing — see core/window.py docstring.
+        claude_window = (
+            replay_windows(
+                claude_result.timestamps,
+                correction=calibration_state.current_correction_seconds,
+            )
+            if claude_result is not None
+            else None
+        )
+        claude_source_type = "estimated" if claude_window is not None else None
 
     decisions = decide_alerts(
         state=state,
@@ -112,7 +152,10 @@ def run_once(
 
     new_state = state
     for d in decisions:
-        alert = _alert_for(d)
+        alert = _alert_for(
+            d,
+            estimated=d.source == "claude" and claude_source_type == "estimated",
+        )
         outcome = dispatch_alert(alert, primary=primary, fallback=fallback)
         if outcome in (DispatchOutcome.PRIMARY_SUCCESS, DispatchOutcome.FALLBACK_SUCCESS):
             if d.source == "claude":

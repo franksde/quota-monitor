@@ -5,18 +5,18 @@ MESSAGES = {
     "wizard.welcome": "QuotaMonitor Setup Wizard",
     "wizard.preflight.ok": "Preflight checks passed.",
     "wizard.preflight.fail": "Preflight failed: {missing}. See README §Setup.",
-    "wizard.step2.title": "\n=== (2/7) Services to monitor ===",
+    "wizard.step2.title": "\n=== (2/8) Services to monitor ===",
     "wizard.step2.claude": "Monitor Claude?",
     "wizard.step2.codex": "Monitor Codex (requires ~/.codex/auth.json)?",
-    "wizard.step3.title": "\n=== (3/7) Notification ===",
+    "wizard.step3.title": "\n=== (3/8) Notification ===",
     "wizard.step3.primary": "Primary notifier:",
     "wizard.step3.fallback": "Fallback when primary fails:",
-    "wizard.step4.title": "\n=== (4/7) Telegram credentials ===",
+    "wizard.step4.title": "\n=== (4/8) Telegram credentials ===",
     "wizard.step4.use_existing": "Using Telegram credentials from existing .env.",
     "wizard.step4.token": "Bot token",
     "wizard.step4.chat_id": "Chat ID",
     "wizard.step4.test": "Send a test message?",
-    "wizard.step5.title": "\n=== (5/7) Cloudflare relay deployment ===",
+    "wizard.step5.title": "\n=== (5/8) Cloudflare relay deployment ===",
     "wizard.step5.preflight_fail": "[error] CF preflight failed:",
     "wizard.step5.fix_rerun": "Fix and re-run setup.",
     "wizard.step5.deploy_fail": "[error] Cloudflare deploy failed. Re-run setup once you fix the issue.",
@@ -32,10 +32,10 @@ MESSAGES = {
     "wizard.step5.worker_new_name": "Enter new Worker name (e.g. my-quota-relay)",
     "wizard.step5.push_secrets": "\nPushing secrets to Cloudflare...",
     "wizard.step5.deploying": "\nDeploying worker...",
-    "wizard.step6.title": "\n=== (6/7) Keepalive ===",
+    "wizard.step6.title": "\n=== (6/8) Keepalive ===",
     "wizard.step6.enable": "Enable keepalive?",
     "wizard.step6.strategy": "Strategy:",
-    "wizard.step7.title": "\n=== (7/7) Schedule install ===",
+    "wizard.step7.title": "\n=== (8/8) Schedule install ===",
     "wizard.step7.install": "Install scheduler:",
     "wizard.step7.install.options": ["LaunchAgent (recommended)", "Print crontab line only", "Skip"],
     "wizard.step6.strategy.options": ["polling - send scheduled requests (default)", "seamless - silent background swap before reset (advanced)"],
@@ -49,9 +49,27 @@ MESSAGES = {
         "  2. Sleep — both polling and seamless strategies stop working while macOS sleeps.\n"
         "     The natural 5h reset still happens; keepalive cannot save it if the Mac is asleep.\n"
     ),
+    "wizard.statusline.title": "\n=== ({step}) StatusLine Precise Usage Tracking ===",
+    "wizard.statusline.enable_fresh": (
+        "Enable statusLine usage tracking? A lightweight script will read real-time "
+        "quota data from Claude Code."
+    ),
+    "wizard.statusline.enable_existing": (
+        "Detected custom status line tool (`{cmd_preview}`). Allow wrapping it to capture "
+        "precise quota data? (Your existing tool's display will not be affected)"
+    ),
+    "wizard.statusline.already_configured": "StatusLine wrapper already configured. Skipping.",
+    "wizard.statusline.installed": "✓ StatusLine wrapper installed.",
 
     "cli.status.no_state": "No state yet. Run `quota-monitor run` first.",
     "cli.status.window": "{source} window: starts {start}, resets {reset}",
+
+    "uninstall.statusline.restored": "✓ StatusLine wrapper removed. Original status line restored.",
+    "uninstall.statusline.skipped_manual": "StatusLine has been manually changed since install. Skipping restore.",
+    "uninstall.statusline.skipped_no_backup": "No statusLine backup found. Skipping restore.",
+    "uninstall.statusline.verify_cmd": "  To verify: cat ~/.claude/settings.json | jq .statusLine",
+
+    "alert.suffix.estimated": " (estimated from local conversation logs)",
 
     "log.probe_failed": "[warn] {source} probe failed: {error}",
     "log.state_corrupted": "[warn] state file corrupted ({error}); resetting to defaults",

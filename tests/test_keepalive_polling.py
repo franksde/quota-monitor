@@ -16,6 +16,19 @@ def test_no_action_when_window_active_and_recent_activity():
     assert decision is PollingDecision.SKIP
 
 
+def test_no_action_when_raw_window_active_but_default_correction_would_expire():
+    now = 10_000.0
+    ts = (now - WINDOW_SECONDS + 100,)
+    with patch("quota_monitor.keepalive.polling.run_keepalive") as run:
+        decision, _ = polling_tick(
+            state=State(), now=now, timestamps=ts,
+            idle_seconds=5 * 3600, claude_cli="/c", shell="/sh",
+            model="haiku", phrase_pool=("a",),
+        )
+    assert decision is PollingDecision.SKIP
+    run.assert_not_called()
+
+
 def test_fires_keepalive_when_no_history_at_all():
     state = State()
     with patch("quota_monitor.keepalive.polling.run_keepalive", return_value=True) as run:

@@ -33,7 +33,7 @@ def seamless_tick(
     trigger_minutes: int,
     buffer_seconds: int,
 ) -> tuple[SeamlessDecision, State]:
-    window = replay_windows(timestamps)
+    window = replay_windows(timestamps, correction=0.0)
     if window is None:
         return SeamlessDecision.SKIP_NO_WINDOW, state
     time_to_reset = window.reset - now

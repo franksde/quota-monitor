@@ -31,3 +31,36 @@ def test_t_unknown_key_returns_key_with_warning():
 def test_invalid_locale_raises():
     with pytest.raises(ValueError):
         set_locale("ja")
+
+
+def test_statusline_wizard_keys_exist_en():
+    set_locale("en")
+    assert "[missing" not in t("wizard.statusline.title", step="8/8")
+    assert "[missing" not in t("wizard.statusline.enable_fresh")
+    assert "[missing" not in t("wizard.statusline.enable_existing", cmd_preview="test")
+    assert "[missing" not in t("wizard.statusline.already_configured")
+
+
+def test_statusline_wizard_keys_exist_zh():
+    set_locale("zh")
+    assert "[missing" not in t("wizard.statusline.title", step="8/8")
+    assert "[missing" not in t("wizard.statusline.enable_fresh")
+    assert "[missing" not in t("wizard.statusline.enable_existing", cmd_preview="test")
+    assert "[missing" not in t("wizard.statusline.already_configured")
+
+
+def test_uninstall_statusline_keys():
+    set_locale("en")
+    assert "[missing" not in t("uninstall.statusline.restored")
+    assert "[missing" not in t("uninstall.statusline.skipped_manual")
+    assert "[missing" not in t("uninstall.statusline.verify_cmd")
+    set_locale("zh")
+    assert "[missing" not in t("uninstall.statusline.restored")
+    assert "[missing" not in t("uninstall.statusline.skipped_manual")
+
+
+def test_alert_suffix_keys():
+    set_locale("en")
+    assert "[missing" not in t("alert.suffix.estimated")
+    set_locale("zh")
+    assert "[missing" not in t("alert.suffix.estimated")

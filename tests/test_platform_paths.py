@@ -1,4 +1,5 @@
 from pathlib import Path
+from quota_monitor.platform import paths
 from quota_monitor.platform.paths import (
     user_data_dir, config_file, env_file, state_file,
     claude_app_dir, claude_cli_dir, claude_costs_file, codex_auth_file,
@@ -32,3 +33,23 @@ def test_codex_auth_path():
 def test_launch_agent_path_uses_label():
     assert launch_agent_path("io.github.frank.quotamonitor") == \
         Path.home() / "Library" / "LaunchAgents" / "io.github.frank.quotamonitor.plist"
+
+
+def test_rate_limits_cache():
+    p = paths.rate_limits_cache()
+    assert str(p).endswith(".quota-monitor/rate_limits_cache.json")
+
+
+def test_calibration_file():
+    p = paths.calibration_file()
+    assert str(p).endswith(".quota-monitor/calibration.json")
+
+
+def test_statusline_original():
+    p = paths.statusline_original()
+    assert str(p).endswith(".quota-monitor/statusline_original.json")
+
+
+def test_claude_settings_file():
+    p = paths.claude_settings_file()
+    assert str(p).endswith(".claude/settings.json")

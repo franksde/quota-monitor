@@ -28,7 +28,7 @@ def polling_tick(
     model: str,
     phrase_pool: Sequence[str],
 ) -> tuple[PollingDecision, State]:
-    window = replay_windows(timestamps)
+    window = replay_windows(timestamps, correction=0.0)
     window_active = window is not None and now < window.reset
     if window_active and not is_idle(timestamps=timestamps, now=now, idle_seconds=idle_seconds):
         return PollingDecision.SKIP, state
