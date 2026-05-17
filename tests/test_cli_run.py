@@ -32,6 +32,31 @@ strategy = "seamless"
     return cfg
 
 
+def _write_cf_config(tmp_path: Path) -> Path:
+    cfg = tmp_path / "config.toml"
+    cfg.write_text("""
+locale = "en"
+[probes.claude]
+enabled = true
+threshold_turns = 5
+window_hours = 5
+precise_threshold_percent = 30
+[probes.codex]
+enabled = false
+[notifiers]
+primary = "cloudflare_relay"
+fallback = ""
+[notifiers.telegram]
+[notifiers.cloudflare_relay]
+enabled = true
+webhook_url = "https://relay.example.com/api/schedule"
+[keepalive]
+enabled = false
+strategy = "seamless"
+""")
+    return cfg
+
+
 def _write_keepalive_config(tmp_path: Path) -> Path:
     cfg = tmp_path / "config.toml"
     cfg.write_text("""
@@ -428,3 +453,173 @@ def test_run_once_records_calibration_sample_when_precise_and_computed_match(tmp
     assert len(calibration["samples"]) == 1
     assert calibration["samples"][0]["precise_reset"] == precise_reset
     assert calibration["samples"][0]["computed_reset"] == computed_start + 5 * 3600
+
+
+# --- CF Queue mode: schedule-ahead alerts ---
+
+def test_cf_mode_schedules_alert_when_precise_threshold_hit(tmp_path):
+    """CF mode: precise pct >= threshold → fire send() with future reset_at.
+    CF Worker will hold it via delaySeconds and deliver at reset_at."""
+    cfg_path = _write_cf_config(tmp_path)
+    env_path = _write_env(tmp_path)
+    state_path = tmp_path / "state.json"
+    cache_path = tmp_path / "rate_limits_cache.json"
+    now = 10_000.0
+    future_reset = now + 3600  # 1h ahead
+    cache_path.write_text(json.dumps({
+        "captured_at": now - 60,
+        "five_hour": {"used_percentage": 80.0, "resets_at": future_reset},
+        "seven_day": {"used_percentage": 30.0, "resets_at": now + 86400},
+    }))
+
+    fake = MagicMock(source="claude", timestamps=(now - 100,) * 10, extra={})
+    with patch("quota_monitor.cli.run.scan_claude", return_value=fake), \
+         patch("quota_monitor.cli.run.platform_paths") as mock_paths, \
+         patch("quota_monitor.cli.run.CloudflareRelayNotifier") as CF:
+        cf_instance = MagicMock(name="cf")
+        cf_instance.name = "cloudflare_relay"
+        CF.return_value = cf_instance
+        mock_paths.rate_limits_cache.return_value = cache_path
+        mock_paths.calibration_file.return_value = tmp_path / "cal.json"
+        rc = run_once(
+            config_path=cfg_path, env_path=env_path, state_path=state_path,
+            now=now, dry_run=False,
+        )
+
+    assert rc == 0
+    cf_instance.send.assert_called_once()
+    sent_alert = cf_instance.send.call_args.args[0]
+    assert sent_alert.reset_at == int(future_reset)
+    saved = json.loads(state_path.read_text())
+    assert saved["claude"]["scheduled_alert_reset_at"] == int(future_reset)
+
+
+def test_cf_mode_dedupes_same_reset(tmp_path):
+    """Second LaunchAgent tick with same future reset → don't re-schedule."""
+    cfg_path = _write_cf_config(tmp_path)
+    env_path = _write_env(tmp_path)
+    state_path = tmp_path / "state.json"
+    cache_path = tmp_path / "rate_limits_cache.json"
+    now = 10_000.0
+    future_reset = now + 3600
+    cache_path.write_text(json.dumps({
+        "captured_at": now - 60,
+        "five_hour": {"used_percentage": 80.0, "resets_at": future_reset},
+        "seven_day": {"used_percentage": 30.0, "resets_at": now + 86400},
+    }))
+    # pre-seed state as already scheduled
+    state_path.write_text(json.dumps({
+        "schema_version": 1,
+        "claude": {
+            "alerted_for_reset": 0, "cooldown_until": 0,
+            "last_known_good_reset_at": 0,
+            "scheduled_alert_reset_at": int(future_reset),
+        },
+        "codex": {"alerted_for_reset": 0, "cooldown_until": 0},
+        "keepalive": {"last_seamless_scheduled_for": 0, "phrase_pool_used_indices": [], "phrase_pool_size_at_init": 0},
+    }))
+
+    fake = MagicMock(source="claude", timestamps=(now - 100,) * 10, extra={})
+    with patch("quota_monitor.cli.run.scan_claude", return_value=fake), \
+         patch("quota_monitor.cli.run.platform_paths") as mock_paths, \
+         patch("quota_monitor.cli.run.CloudflareRelayNotifier") as CF:
+        cf_instance = MagicMock(name="cf")
+        cf_instance.name = "cloudflare_relay"
+        CF.return_value = cf_instance
+        mock_paths.rate_limits_cache.return_value = cache_path
+        mock_paths.calibration_file.return_value = tmp_path / "cal.json"
+        rc = run_once(
+            config_path=cfg_path, env_path=env_path, state_path=state_path,
+            now=now, dry_run=False,
+        )
+
+    assert rc == 0
+    cf_instance.send.assert_not_called()  # dedupe kicked in
+
+
+def test_cf_mode_schedules_when_only_jsonl_turns_hit(tmp_path):
+    """No precise data, but enough jsonl turns → schedule based on estimated
+    reset. Covers "user closed terminal, we still send out something" goal."""
+    cfg_path = _write_cf_config(tmp_path)
+    env_path = _write_env(tmp_path)
+    state_path = tmp_path / "state.json"
+    now = 10_000.0
+    # 10 timestamps right before now, no precise → estimated path
+    timestamps = tuple(now - i * 60 for i in range(10))
+    fake = MagicMock(source="claude", timestamps=timestamps, extra={})
+
+    with patch("quota_monitor.cli.run.scan_claude", return_value=fake), \
+         patch("quota_monitor.cli.run.read_precise", return_value=None), \
+         patch("quota_monitor.cli.run.platform_paths") as mock_paths, \
+         patch("quota_monitor.cli.run.CloudflareRelayNotifier") as CF:
+        cf_instance = MagicMock(name="cf")
+        cf_instance.name = "cloudflare_relay"
+        CF.return_value = cf_instance
+        mock_paths.rate_limits_cache.return_value = tmp_path / "no_cache.json"
+        mock_paths.calibration_file.return_value = tmp_path / "cal.json"
+        rc = run_once(
+            config_path=cfg_path, env_path=env_path, state_path=state_path,
+            now=now, dry_run=False,
+        )
+
+    assert rc == 0
+    cf_instance.send.assert_called_once()
+    sent_alert = cf_instance.send.call_args.args[0]
+    assert sent_alert.reset_at > now  # future
+
+
+def test_cf_mode_skips_when_no_data_at_all(tmp_path):
+    """No precise, no jsonl, no anchor → don't schedule anything."""
+    cfg_path = _write_cf_config(tmp_path)
+    env_path = _write_env(tmp_path)
+    state_path = tmp_path / "state.json"
+    now = 10_000.0
+    fake = MagicMock(source="claude", timestamps=(), extra={})
+
+    with patch("quota_monitor.cli.run.scan_claude", return_value=fake), \
+         patch("quota_monitor.cli.run.read_precise", return_value=None), \
+         patch("quota_monitor.cli.run.platform_paths") as mock_paths, \
+         patch("quota_monitor.cli.run.CloudflareRelayNotifier") as CF:
+        cf_instance = MagicMock(name="cf")
+        cf_instance.name = "cloudflare_relay"
+        CF.return_value = cf_instance
+        mock_paths.rate_limits_cache.return_value = tmp_path / "no_cache.json"
+        mock_paths.calibration_file.return_value = tmp_path / "cal.json"
+        rc = run_once(
+            config_path=cfg_path, env_path=env_path, state_path=state_path,
+            now=now, dry_run=False,
+        )
+
+    assert rc == 0
+    cf_instance.send.assert_not_called()
+
+
+def test_cf_mode_dry_run_does_not_send(tmp_path):
+    cfg_path = _write_cf_config(tmp_path)
+    env_path = _write_env(tmp_path)
+    state_path = tmp_path / "state.json"
+    cache_path = tmp_path / "rate_limits_cache.json"
+    now = 10_000.0
+    cache_path.write_text(json.dumps({
+        "captured_at": now - 60,
+        "five_hour": {"used_percentage": 80.0, "resets_at": now + 3600},
+        "seven_day": {"used_percentage": 30.0, "resets_at": now + 86400},
+    }))
+
+    fake = MagicMock(source="claude", timestamps=(now - 100,) * 10, extra={})
+    with patch("quota_monitor.cli.run.scan_claude", return_value=fake), \
+         patch("quota_monitor.cli.run.platform_paths") as mock_paths, \
+         patch("quota_monitor.cli.run.CloudflareRelayNotifier") as CF:
+        cf_instance = MagicMock(name="cf")
+        cf_instance.name = "cloudflare_relay"
+        CF.return_value = cf_instance
+        mock_paths.rate_limits_cache.return_value = cache_path
+        mock_paths.calibration_file.return_value = tmp_path / "cal.json"
+        rc = run_once(
+            config_path=cfg_path, env_path=env_path, state_path=state_path,
+            now=now, dry_run=True,
+        )
+
+    assert rc == 0
+    cf_instance.send.assert_not_called()
+    assert not state_path.exists()

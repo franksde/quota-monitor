@@ -18,6 +18,10 @@ class ClaudeState:
     alerted_for_reset: int = 0
     cooldown_until: int = 0
     last_known_good_reset_at: float = 0.0
+    # CF Queue mode dedupe: which future reset we've already scheduled a
+    # delayed "recovered" notification for. Prevents every LaunchAgent tick
+    # from re-scheduling the same future alert.
+    scheduled_alert_reset_at: int = 0
 
 
 @dataclass(frozen=True)
@@ -61,7 +65,12 @@ def load_state(path: Path) -> State:
         # Backward-compatibility: silently ignore obsolete ClaudeState fields
         # (current_window_start / current_window_reset) that may exist in older state files.
         claude_block = {k: v for k, v in (raw.get("claude") or {}).items()
-                        if k in {"alerted_for_reset", "cooldown_until", "last_known_good_reset_at"}}
+                        if k in {
+                            "alerted_for_reset",
+                            "cooldown_until",
+                            "last_known_good_reset_at",
+                            "scheduled_alert_reset_at",
+                        }}
         codex_block = {k: v for k, v in (raw.get("codex") or {}).items()
                        if k in {
                            "alerted_for_reset",

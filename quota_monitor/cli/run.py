@@ -8,7 +8,7 @@ from typing import Optional
 from ..config.loader import ConfigError, load_config
 from ..core.calibration import load_calibration, record_sample, save_calibration
 from ..core.dispatch import DispatchOutcome, dispatch_alert
-from ..core.state import CodexState, load_state, save_state
+from ..core.state import ClaudeState, CodexState, load_state, save_state
 from ..core.window import AlertDecision, LatestWindow, decide_alerts, replay_windows, window_from_known_reset
 from ..i18n import set_locale, t
 from ..notifiers import Alert, Notifier
@@ -56,6 +56,91 @@ def _alert_for(decision: AlertDecision, *, estimated: bool = False) -> Alert:
         reset_at=decision.reset_at,
         source=decision.source,
     )
+
+
+def _best_known_future_reset(precise, claude_state, claude_result, now: float) -> Optional[float]:
+    """Pick the moment to schedule a 'recovered' notification for. Always
+    returns a value strictly in the future, or None if we have nothing.
+
+    Priority:
+      1. precise data, reset still in future
+      2. precise data, reset just passed -> predict next as +5h (assumes
+         continuous activity which is the only case where a 'recovered'
+         alert is relevant)
+      3. last_known_good anchor (from earlier precise) + 5h
+      4. replay_windows estimate
+    """
+    from ..core.window import WINDOW_SECONDS, replay_windows
+    if precise and precise.five_hour_resets_at > now:
+        return precise.five_hour_resets_at
+    if precise:
+        candidate = precise.five_hour_resets_at + WINDOW_SECONDS
+        while candidate <= now:
+            candidate += WINDOW_SECONDS
+        return candidate
+    if claude_state.last_known_good_reset_at:
+        candidate = claude_state.last_known_good_reset_at + WINDOW_SECONDS
+        while candidate <= now:
+            candidate += WINDOW_SECONDS
+        return candidate
+    if claude_result and claude_result.timestamps:
+        w = replay_windows(claude_result.timestamps)
+        if w and w.reset > now:
+            return w.reset
+    return None
+
+
+def _maybe_schedule_cf_recovered_alert(
+    *, cfg, state, precise, claude_result, now: float, primary,
+    dry_run: bool,
+):
+    """CF Queue mode: schedule the 'recovered' notification at threshold-
+    detection time (NOT at reset time). CF Worker holds it via delaySeconds
+    and pushes when the window resets. Decouples our decision moment from
+    the notification delivery moment — survives the user closing the
+    terminal, the LaunchAgent missing ticks around reset, etc.
+
+    Threshold: precise pct >= threshold OR jsonl turns >= threshold_turns.
+    Either qualifies — per user requirement, "missing a notification is
+    worse than sending one slightly off-target".
+
+    Returns possibly-updated state.
+    """
+    threshold_hit = (
+        (precise is not None and precise.five_hour_pct >= cfg.probes.claude.precise_threshold_percent)
+        or (claude_result is not None and len(claude_result.timestamps) >= cfg.probes.claude.threshold_turns)
+    )
+    if not threshold_hit:
+        return state
+
+    best_reset = _best_known_future_reset(precise, state.claude, claude_result, now)
+    if best_reset is None:
+        return state
+
+    if state.claude.scheduled_alert_reset_at == int(best_reset):
+        return state  # already queued this reset
+
+    if dry_run:
+        print(f"[dry-run] would CF-schedule: source=claude reset_at={int(best_reset)}")
+        return state
+
+    reset_human = datetime.fromtimestamp(best_reset).strftime("%Y-%m-%d %H:%M:%S")
+    alert = Alert(
+        title=t("alert.title.recovered", source="Claude"),
+        body=t("alert.body.recovered", source="Claude", reset_at_human=reset_human),
+        reset_at=int(best_reset),
+        source="claude",
+    )
+    try:
+        primary.send(alert)
+    except Exception as e:
+        print(f"[warn] CF schedule failed: {e}", file=sys.stderr)
+        return state
+
+    return replace(state, claude=replace(
+        state.claude,
+        scheduled_alert_reset_at=int(best_reset),
+    ))
 
 
 def _codex_fetch_hint(state: CodexState) -> Optional[FetchHint]:
@@ -187,6 +272,33 @@ def run_once(
                 )
         claude_source_type = "estimated" if claude_window is not None else None
 
+    is_cf_mode = cfg.notifiers.primary == "cloudflare_relay"
+
+    # CF Queue mode: schedule the "recovered" alert at threshold-detection
+    # time (now) so the Worker can hold it via delaySeconds and deliver
+    # exactly at reset_at — even if the LaunchAgent isn't running then,
+    # the terminal is closed, or precise data has gone stale.
+    if is_cf_mode:
+        if dry_run:
+            new_state = _maybe_schedule_cf_recovered_alert(
+                cfg=cfg, state=new_state, precise=precise,
+                claude_result=claude_result, now=now, primary=None, dry_run=True,
+            )
+            return 0
+        primary = _build_notifier(cfg.notifiers.primary, cfg, cfg.secrets)
+        if primary is None:
+            print("[error] primary notifier could not be constructed", file=sys.stderr)
+            return 3
+        new_state = _maybe_schedule_cf_recovered_alert(
+            cfg=cfg, state=new_state, precise=precise,
+            claude_result=claude_result, now=now, primary=primary, dry_run=False,
+        )
+        save_state(state_path, new_state)
+        return 0
+
+    # Polling mode (TG-direct, macOS native, etc.): fire at reset_at via
+    # the at-reset-recovered model. No way to defer with these notifiers,
+    # so we must catch the reset moment in a LaunchAgent tick.
     decisions = decide_alerts(
         state=state,
         claude_window=claude_window,
