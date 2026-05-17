@@ -1,6 +1,7 @@
 import re
 import subprocess
 import sys
+from importlib import resources
 from pathlib import Path
 from typing import Optional
 
@@ -15,6 +16,23 @@ def _run_wrangler(args: list[str], *, cwd: Path, stdin: Optional[str] = None) ->
         return result.returncode, result.stdout, result.stderr
     except FileNotFoundError:
         return 127, "", "wrangler not found in PATH"
+
+
+def prepare_cf_relay_workdir(work_dir: Optional[Path] = None) -> Path:
+    """Copy bundled Cloudflare relay assets into a writable work directory."""
+    work_dir = work_dir or (Path.home() / ".quota-monitor" / "cloudflare-relay")
+    bundled = resources.files("quota_monitor.cloudflare_relay")
+    for rel in (
+        "wrangler.toml.example",
+        "package.json",
+        "README.md",
+        "src/worker.js",
+    ):
+        src = bundled.joinpath(*rel.split("/"))
+        dest = work_dir / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(src.read_bytes())
+    return work_dir
 
 
 def deploy_cf_relay(

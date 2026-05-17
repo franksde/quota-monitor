@@ -159,8 +159,8 @@ def _collect_interactive_answers(*, existing_secrets: Optional[dict[str, str]] =
                 print(f"  - {e}")
             print(t("wizard.step5.fix_rerun"))
             raise SystemExit(2)
-        from ._wrangler import deploy_cf_relay
-        relay_dir = Path(__file__).resolve().parent.parent.parent / "cloudflare-relay"
+        from ._wrangler import deploy_cf_relay, prepare_cf_relay_workdir
+        relay_dir = prepare_cf_relay_workdir()
         url = deploy_cf_relay(
             relay_dir=relay_dir,
             telegram_bot_token=answers["telegram_bot_token"],

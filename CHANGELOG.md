@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.2.2 — 2026-05-18
+
+- `fix(setup)`: bundle Cloudflare relay assets inside the Python package so
+  `quota-monitor setup` can deploy the relay from PyPI/Homebrew installs.
+- `fix(setup)`: copy relay assets into `~/.quota-monitor/cloudflare-relay`
+  before running `wrangler`, avoiding writes inside Homebrew/Python install
+  directories.
+- `fix(setup)`: replace an existing LaunchAgent cleanly by unloading the old
+  job before writing and loading the new plist.
+- `chore(metadata)`: add README metadata and modern SPDX license declaration
+  for clean `twine check` output.
+- `docs`: restore consistent README language-switch links.
+
 ## v0.2.1 — 2026-05-17
 
 - `fix(cli/run)`: CF mode without telegram fallback no longer returns 3

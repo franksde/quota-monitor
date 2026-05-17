@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "quota-monitor"
-version = "0.2.1"
+version = "0.2.2"
 description = "Monitor Claude / Codex 5-hour quota windows and notify on reset."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -21,3 +21,11 @@ quota-monitor = "quota_monitor.__main__:main"
 [tool.setuptools.packages.find]
 include = ["quota_monitor*"]
 exclude = ["tests*"]
+
+[tool.setuptools.package-data]
+quota_monitor = [
+  "cloudflare_relay/*.md",
+  "cloudflare_relay/*.json",
+  "cloudflare_relay/*.example",
+  "cloudflare_relay/src/*.js",
+]

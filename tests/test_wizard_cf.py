@@ -1,9 +1,19 @@
 from unittest.mock import patch, MagicMock
-from quota_monitor.cli._wrangler import deploy_cf_relay
+from quota_monitor.cli._wrangler import deploy_cf_relay, prepare_cf_relay_workdir
 
 
 def _ok(stdout=""):
     return MagicMock(returncode=0, stdout=stdout, stderr="")
+
+
+def test_prepare_cf_relay_workdir_copies_bundled_worker_files(tmp_path):
+    relay_dir = prepare_cf_relay_workdir(tmp_path / "relay-workdir")
+
+    assert (relay_dir / "wrangler.toml.example").exists()
+    assert (relay_dir / "package.json").exists()
+    assert (relay_dir / "src" / "worker.js").exists()
+    assert "SCHEDULE_TOMBSTONE" in (relay_dir / "wrangler.toml.example").read_text()
+    assert "ALERTS_QUEUE" in (relay_dir / "src" / "worker.js").read_text()
 
 
 def test_deploy_pushes_secrets_and_deploys(tmp_path):
