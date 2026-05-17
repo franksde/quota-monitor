@@ -354,41 +354,41 @@ def run_once(
             print(f"[dry-run] would alert: source={d.source} reset_at={d.reset_at}")
         return 0
 
-    polling_primary_name = "telegram" if is_cf_mode else cfg.notifiers.primary
-    primary = _build_notifier(polling_primary_name, cfg, cfg.secrets)
-    fallback = _build_notifier(cfg.notifiers.fallback, cfg, cfg.secrets)
-    if primary is None:
-        print("[error] primary notifier could not be constructed", file=sys.stderr)
-        return 3
+    if decisions:
+        primary = _build_notifier(cfg.notifiers.primary, cfg, cfg.secrets)
+        fallback = _build_notifier(cfg.notifiers.fallback, cfg, cfg.secrets)
+        if primary is None:
+            print("[error] primary notifier could not be constructed", file=sys.stderr)
+            return 3
 
-    for d in decisions:
-        alert = _alert_for(
-            d,
-            estimated=d.source == "claude" and claude_source_type == "estimated",
-        )
-        outcome = dispatch_alert(alert, primary=primary, fallback=fallback)
-        if outcome in (DispatchOutcome.PRIMARY_SUCCESS, DispatchOutcome.FALLBACK_SUCCESS):
-            if d.source == "claude":
-                # Cooldown anchored to reset_at + 30 min grace (= same window
-                # decide_alerts honours), NOT wall-clock 4h. Wall-clock 4h can
-                # straddle the next real reset and silently swallow the next
-                # legitimate "recovered" alert (hit in the wild 2026-05-17:
-                # 4h cooldown set at 20:08 ate the 21:10 reset notification).
-                # Anchoring to reset_at means cooldown naturally expires
-                # before the next window's reset (5h away). max(..., now+1h)
-                # defends against algorithm reset_at drift on the estimated path.
-                cooldown_target = max(d.reset_at + 30 * 60, int(now) + 3600)
-                new_state = replace(new_state, claude=replace(
-                    new_state.claude,
-                    alerted_for_reset=d.reset_at,
-                    cooldown_until=cooldown_target,
-                ))
-            elif d.source == "codex":
-                new_state = replace(new_state, codex=replace(
-                    new_state.codex,
-                    alerted_for_reset=d.reset_at,
-                    cooldown_until=d.reset_at,
-                ))
+        for d in decisions:
+            alert = _alert_for(
+                d,
+                estimated=d.source == "claude" and claude_source_type == "estimated",
+            )
+            outcome = dispatch_alert(alert, primary=primary, fallback=fallback)
+            if outcome in (DispatchOutcome.PRIMARY_SUCCESS, DispatchOutcome.FALLBACK_SUCCESS):
+                if d.source == "claude":
+                    # Cooldown anchored to reset_at + 30 min grace (= same window
+                    # decide_alerts honours), NOT wall-clock 4h. Wall-clock 4h can
+                    # straddle the next real reset and silently swallow the next
+                    # legitimate "recovered" alert (hit in the wild 2026-05-17:
+                    # 4h cooldown set at 20:08 ate the 21:10 reset notification).
+                    # Anchoring to reset_at means cooldown naturally expires
+                    # before the next window's reset (5h away). max(..., now+1h)
+                    # defends against algorithm reset_at drift on the estimated path.
+                    cooldown_target = max(d.reset_at + 30 * 60, int(now) + 3600)
+                    new_state = replace(new_state, claude=replace(
+                        new_state.claude,
+                        alerted_for_reset=d.reset_at,
+                        cooldown_until=cooldown_target,
+                    ))
+                elif d.source == "codex":
+                    new_state = replace(new_state, codex=replace(
+                        new_state.codex,
+                        alerted_for_reset=d.reset_at,
+                        cooldown_until=d.reset_at,
+                    ))
 
     if cfg.keepalive.enabled:
         timestamps = claude_result.timestamps if claude_result is not None else ()

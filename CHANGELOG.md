@@ -2,6 +2,7 @@
 
 ## v0.2.1 — 2026-05-17
 
+- `fix(cli/run)`: CF mode without telegram fallback no longer returns 3
 Patch release for v0.2.0 review findings.
 
 - CF Queue mode no longer exits before Codex polling alerts; Claude remains

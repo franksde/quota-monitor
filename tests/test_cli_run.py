@@ -767,3 +767,40 @@ def test_cf_mode_dry_run_does_not_send(tmp_path):
     assert rc == 0
     cf_instance.send.assert_not_called()
     assert not state_path.exists()
+
+def test_cf_mode_without_telegram_secrets_does_not_return_3(tmp_path):
+    cfg_path = _write_cf_config(tmp_path)
+    env_path = tmp_path / ".env"
+    env_path.write_text("")  # No telegram secrets
+    state_path = tmp_path / "state.json"
+    now = 10_000.0
+    
+    # Claude threshold hit
+    precise = MagicMock(
+        five_hour_pct=80.0,
+        five_hour_resets_at=now + 3600,
+    )
+
+    with patch("quota_monitor.cli.run.ensure_wrapper_installed", return_value=False), \
+         patch("quota_monitor.cli.run.scan_claude", return_value=None), \
+         patch("quota_monitor.cli.run.read_precise", return_value=precise), \
+         patch("quota_monitor.cli.run.CloudflareRelayNotifier") as CF:
+        
+        cf_instance = MagicMock(name="cf")
+        cf_instance.name = "cloudflare_relay"
+        CF.return_value = cf_instance
+        
+        # Don't mock TelegramNotifier. Let it fail internally if it gets called.
+
+        rc = run_once(
+            config_path=cfg_path,
+            env_path=env_path,
+            state_path=state_path,
+            now=now,
+            dry_run=False,
+        )
+
+    # Should succeed and save state
+    assert rc == 0
+    assert state_path.exists()
+    cf_instance.send.assert_called_once()
