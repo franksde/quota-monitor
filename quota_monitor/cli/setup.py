@@ -252,11 +252,14 @@ def run_wizard(
         return 2
 
     data_dir.mkdir(parents=True, exist_ok=True)
+    data_dir.chmod(0o700)
     config_path.parent.mkdir(parents=True, exist_ok=True)
     env_path.parent.mkdir(parents=True, exist_ok=True)
 
     config_path.write_text(_render_config(answers))
+    config_path.chmod(0o600)
     env_path.write_text(_render_env(answers))
+    env_path.chmod(0o600)
     print(f"\nWrote {config_path}\nWrote {env_path}")
 
     if not answers.get("skip_telegram_test", True) and answers.get("primary") in ("telegram", "cloudflare_relay"):

@@ -1,4 +1,5 @@
 import json
+import stat
 from pathlib import Path
 from unittest.mock import patch
 from quota_monitor.cli.setup import _collect_interactive_answers, run_wizard
@@ -28,6 +29,9 @@ def test_wizard_non_interactive_writes_config_and_env(tmp_path):
     env_text = env_path.read_text()
     assert "TELEGRAM_BOT_TOKEN=TEST_TOKEN" in env_text
     assert "TELEGRAM_CHAT_ID=TEST_CHAT" in env_text
+    assert stat.S_IMODE(config_path.stat().st_mode) == 0o600
+    assert stat.S_IMODE(env_path.stat().st_mode) == 0o600
+    assert stat.S_IMODE(tmp_path.stat().st_mode) == 0o700
 
 
 def test_wizard_sends_requested_test_notification(tmp_path):
