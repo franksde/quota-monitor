@@ -69,6 +69,11 @@ MESSAGES = {
     "uninstall.statusline.skipped_manual": "StatusLine has been manually changed since install. Skipping restore.",
     "uninstall.statusline.skipped_no_backup": "No statusLine backup found. Skipping restore.",
     "uninstall.statusline.verify_cmd": "  To verify: cat ~/.claude/settings.json | jq .statusLine",
+    "uninstall.cloudflare_relay.manual_cleanup": (
+        "If you previously deployed the CF relay worker, manually run "
+        "`wrangler delete quota-monitor-relay` and "
+        "`wrangler kv namespace delete --binding SCHEDULE_TOMBSTONE`."
+    ),
 
     "alert.suffix.estimated": " (estimated from local conversation logs)",
 

@@ -1,6 +1,7 @@
 import json
 from unittest.mock import patch
 from quota_monitor.cli.uninstall import uninstall
+from quota_monitor.i18n import set_locale
 
 
 def test_uninstall_calls_launchagent_remove(tmp_path):
@@ -18,6 +19,7 @@ def test_uninstall_calls_launchagent_remove(tmp_path):
 
 
 def test_uninstall_is_noop_when_plist_missing(tmp_path, capsys):
+    set_locale("en")
     plist = tmp_path / "no.plist"
     with patch("quota_monitor.cli.uninstall.platform_paths") as mock_paths:
         mock_paths.claude_settings_file.return_value = tmp_path / "settings.json"
@@ -26,9 +28,12 @@ def test_uninstall_is_noop_when_plist_missing(tmp_path, capsys):
         mock_paths.calibration_file.return_value = tmp_path / "calibration.json"
         rc = uninstall(launch_agent_label="io.x", plist_path=plist)
     assert rc == 0
-    out = capsys.readouterr().out + capsys.readouterr().err
+    captured = capsys.readouterr()
+    out = captured.out + captured.err
     # The function should still print guidance about config/state.
     assert "config" in (out.lower() + "")
+    assert "wrangler delete quota-monitor-relay" in out
+    assert "SCHEDULE_TOMBSTONE" in out
 
 
 def test_uninstall_restores_statusline(tmp_path, capsys):

@@ -66,6 +66,11 @@ MESSAGES = {
     "uninstall.statusline.skipped_manual": "检测到 statusLine 已被手动更改，跳过还原。",
     "uninstall.statusline.skipped_no_backup": "未找到 statusLine 备份，跳过还原。",
     "uninstall.statusline.verify_cmd": "  检查命令: cat ~/.claude/settings.json | jq .statusLine",
+    "uninstall.cloudflare_relay.manual_cleanup": (
+        "如果你之前部署了 CF relay worker，记得手动 "
+        "`wrangler delete quota-monitor-relay` 并 "
+        "`wrangler kv namespace delete --binding SCHEDULE_TOMBSTONE`。"
+    ),
 
     "alert.suffix.estimated": "（根据本地对话记录时间估算）",
 

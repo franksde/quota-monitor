@@ -56,9 +56,11 @@ def test_uninstall_statusline_keys():
     assert "[missing" not in t("uninstall.statusline.restored")
     assert "[missing" not in t("uninstall.statusline.skipped_manual")
     assert "[missing" not in t("uninstall.statusline.verify_cmd")
+    assert "[missing" not in t("uninstall.cloudflare_relay.manual_cleanup")
     set_locale("zh")
     assert "[missing" not in t("uninstall.statusline.restored")
     assert "[missing" not in t("uninstall.statusline.skipped_manual")
+    assert "[missing" not in t("uninstall.cloudflare_relay.manual_cleanup")
 
 
 def test_alert_suffix_keys():

@@ -36,4 +36,5 @@ def uninstall(*, launch_agent_label: str, plist_path: Path) -> int:
 
     print("NOTE: ~/.quota-monitor/ (config.toml, .env, state.json) was NOT touched.")
     print("      Remove manually if you want a complete wipe.")
+    print(t("uninstall.cloudflare_relay.manual_cleanup"))
     return 0
