@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.2.1 — 2026-05-17
+
+Patch release for v0.2.0 review findings.
+
+- CF Queue mode no longer exits before Codex polling alerts; Claude remains
+  schedule-ahead via CF relay, while Codex threshold alerts still send via
+  direct Telegram.
+- Codex API fetch throttling now continues polling every 30 minutes after
+  crossing the threshold, so reset-time drift can still be detected.
+- Seamless keepalive now uses the precise reset anchor updated during the
+  current scan.
+- Setup now writes `config.toml` and `.env` as `0600`, and the data directory
+  as `0700`.
+- CF relay `schedule_id` bucketing now tolerates 1-second reset jitter around
+  5-hour window boundaries.
+- `state.json` writes are serialized with a file lock around tmp-write and
+  atomic rename.
+- Seamless keepalive tmux sessions use nanosecond-based names to avoid
+  same-second collisions.
+- `quota-monitor uninstall` now reminds CF relay users to delete the Worker
+  and KV namespace manually.
+
 ## v0.2.0 — 2026-05-17
 
 Substantial rewrite of the alert and probe pipelines based on field
