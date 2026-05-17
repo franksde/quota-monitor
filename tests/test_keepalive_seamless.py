@@ -57,6 +57,26 @@ def test_schedules_tmux_inside_trigger_window():
     assert new_state.keepalive.last_seamless_scheduled_for == int(expected_reset)
 
 
+def test_tmux_session_names_use_nanoseconds():
+    now = 10_000.0
+    ts = (now - WINDOW_SECONDS + 500,)
+    with patch("quota_monitor.keepalive.seamless._find_tmux", return_value="/opt/homebrew/bin/tmux"), \
+         patch("quota_monitor.keepalive.seamless.subprocess.run") as run, \
+         patch("quota_monitor.keepalive.seamless.time.time", return_value=123.0), \
+         patch("quota_monitor.keepalive.seamless.time.time_ns", side_effect=[123_000_000_001, 123_000_000_002]):
+        run.return_value.returncode = 0
+        for _ in range(2):
+            decision, _ = seamless_tick(
+                state=State(), now=now, timestamps=ts,
+                claude_cli="/c", shell="/sh", model="haiku", phrase_pool=("a",),
+                trigger_minutes=30, buffer_seconds=60,
+            )
+            assert decision is SeamlessDecision.SCHEDULED
+
+    session_names = [call.args[0][4] for call in run.call_args_list]
+    assert session_names[0] != session_names[1]
+
+
 def test_fails_loudly_when_tmux_not_installed():
     now = 10_000.0
     ts = (now - WINDOW_SECONDS + 500,)

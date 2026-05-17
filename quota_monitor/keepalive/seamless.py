@@ -114,7 +114,7 @@ def seamless_tick(
         f"--model {shlex.quote(model)} --no-session-persistence "
         f"--bare --system-prompt ping --tools '' --disable-slash-commands"
     )
-    session_name = f"qm_keepalive_{int(time.time())}"
+    session_name = f"qm_keepalive_{time.time_ns()}"
     # tmux runs the inner command via a login shell so ~/.zprofile is
     # sourced — that's where Homebrew PATH and (often) cc-switch /
     # third-party provider env vars get exported. Without -l, brew-installed
