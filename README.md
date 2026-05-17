@@ -15,17 +15,17 @@ prepare the outside world before you run the wizard.
 > runs from start to finish without interruption:
 >
 > 1. **Python ≥ 3.11**.  If missing: `brew install python@3.12`
-> 2. **`claude` CLI** in PATH (only if I plan to enable keepalive).
-> 3. **Telegram bot**: create via @BotFather, get token + chat_id, 
+> 2. **`claude` CLI** in PATH (Claude Code; only if I plan to enable keepalive).
+> 3. **`tmux`** in PATH (only if I plan to enable keepalive):
+>    `brew install tmux`
+> 4. **Telegram bot**: create via @BotFather, get token + chat_id,
 >    write them to `~/.quota-monitor/.env` using `.env.example`.
-> 4. **Cloudflare relay** (recommended if I'm a developer):
+> 5. **Cloudflare relay** (recommended if I'm a developer):
 >    - `npm install -g wrangler`
 >    - `wrangler login`  (opens browser; I'll authenticate)
 >    - Confirm `wrangler whoami` returns my account.
->    - Keep the relay cron at `*/3 * * * *` unless I explicitly choose
->      a faster schedule.
-> 5. **Read README §Risks** with me — decide if I enable keepalive.
-> 6. **Decide** schedule install: LaunchAgent (default) or manual cron.
+> 6. **Read README §Risks** with me — decide if I enable keepalive.
+> 7. **Decide** schedule install: LaunchAgent (default).
 >
 > When prerequisites are ready, tell me to run:
 >     python3.11 -m quota_monitor setup

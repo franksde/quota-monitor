@@ -16,16 +16,17 @@
 > 请阅读它的 README，把所有前置条件准备好，让 setup 向导可以从头到尾顺利跑完：
 >
 > 1. **Python ≥ 3.11**。如果没有，运行：`brew install python@3.12`
-> 2. **`claude` CLI** 在 PATH 中（只有我要启用 keepalive 时才需要）。
-> 3. **Telegram bot**：通过 @BotFather 创建 bot，拿到 token 和 chat_id，
+> 2. **`claude` CLI** 在 PATH 中（Claude Code；只有我要启用 keepalive 时才需要）。
+> 3. **`tmux`** 在 PATH 中（只有我要启用 keepalive 时才需要）：
+>    `brew install tmux`
+> 4. **Telegram bot**：通过 @BotFather 创建 bot，拿到 token 和 chat_id，
 >    参考 `.env.example` 写入 `~/.quota-monitor/.env`。
-> 4. **Cloudflare relay**（开发者推荐开启）：
+> 5. **Cloudflare relay**（开发者推荐开启）：
 >    - `npm install -g wrangler`
 >    - `wrangler login`（会打开浏览器，我来完成登录授权）
 >    - 确认 `wrangler whoami` 能返回我的 Cloudflare 账号。
->    - Cloudflare Worker cron 默认保持 `*/3 * * * *`，除非我明确想改成更频繁的轮询。
-> 5. **和我一起阅读 README 的风险部分**，再决定是否启用 keepalive。
-> 6. **确认调度方式**：LaunchAgent（默认）或手动 cron。
+> 6. **和我一起阅读 README 的风险部分**，再决定是否启用 keepalive。
+> 7. **确认调度方式**：LaunchAgent（默认）。
 >
 > 前置条件准备好后，告诉我运行：
 >     python3.11 -m quota_monitor setup
