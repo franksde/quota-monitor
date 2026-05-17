@@ -6,9 +6,10 @@ from pathlib import Path
 from typing import Optional
 
 from ..config.loader import ConfigError, load_config
+from ..core.calibration import load_calibration, record_sample, save_calibration
 from ..core.dispatch import DispatchOutcome, dispatch_alert
 from ..core.state import ClaudeState, CodexState, load_state, save_state
-from ..core.window import AlertDecision, decide_alerts, replay_windows
+from ..core.window import AlertDecision, LatestWindow, decide_alerts, replay_windows
 from ..i18n import set_locale, t
 from ..notifiers import Alert, Notifier
 from ..notifiers.cloudflare_relay import CloudflareRelayNotifier
@@ -17,6 +18,7 @@ from ..notifiers.telegram import TelegramNotifier
 from ..platform import paths as platform_paths
 from ..probes.claude import scan_claude
 from ..probes.codex import CodexAuthMissingError, scan_codex
+from ..probes.precise import read_precise
 
 
 def _build_notifier(name: str, cfg, secrets: dict[str, str]) -> Optional[Notifier]:
@@ -86,9 +88,42 @@ def run_once(
         except Exception as e:
             print(t("log.probe_failed", source="codex", error=e), file=sys.stderr)
 
-    # Full Replay: compute the latest Claude window from probe timestamps alone.
-    # State never participates in window slicing — see core/window.py docstring.
-    claude_window = replay_windows(claude_result.timestamps) if claude_result is not None else None
+    precise = None
+    if cfg.probes.claude.enabled:
+        precise = read_precise(platform_paths.rate_limits_cache(), now=now)
+
+    calibration_state = load_calibration(platform_paths.calibration_file())
+
+    if precise is not None:
+        claude_window = LatestWindow(
+            start=precise.five_hour_resets_at - (cfg.probes.claude.window_hours * 3600),
+            reset=precise.five_hour_resets_at,
+            count=cfg.probes.claude.threshold_turns,
+        )
+
+        if claude_result is not None:
+            computed = replay_windows(claude_result.timestamps, correction=0.0)
+            if computed is not None and computed.reset > now:
+                diff = abs(precise.five_hour_resets_at - computed.reset)
+                if diff < 1800:
+                    calibration_state = record_sample(
+                        calibration_state,
+                        precise_reset=precise.five_hour_resets_at,
+                        computed_reset=computed.reset,
+                        ts=now,
+                    )
+                    save_calibration(platform_paths.calibration_file(), calibration_state)
+    else:
+        # Full Replay: compute the latest Claude window from probe timestamps alone.
+        # State never participates in window slicing — see core/window.py docstring.
+        claude_window = (
+            replay_windows(
+                claude_result.timestamps,
+                correction=calibration_state.current_correction_seconds,
+            )
+            if claude_result is not None
+            else None
+        )
 
     decisions = decide_alerts(
         state=state,
