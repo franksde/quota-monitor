@@ -65,6 +65,20 @@ def test_install_writes_file_and_calls_launchctl(tmp_path):
     assert "load" in cmd
 
 
+def test_install_unloads_existing_launch_agent_before_replacing_plist(tmp_path):
+    plist_path = tmp_path / "agent.plist"
+    plist_path.write_text("<old/>")
+
+    with patch("quota_monitor.platform.schedule.subprocess.run") as run:
+        run.return_value = MagicMock(returncode=0, stderr="")
+        install_launch_agent(plist_path=plist_path, plist_content="<new/>")
+
+    assert plist_path.read_text() == "<new/>"
+    calls = [call.args[0] for call in run.call_args_list]
+    assert calls[0] == ["launchctl", "unload", str(plist_path)]
+    assert calls[1] == ["launchctl", "load", "-w", str(plist_path)]
+
+
 def test_uninstall_calls_launchctl_unload_and_removes_file(tmp_path):
     plist_path = tmp_path / "agent.plist"
     plist_path.write_text("<plist/>")

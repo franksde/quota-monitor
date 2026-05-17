@@ -52,6 +52,13 @@ def generate_launch_agent_plist(
 
 def install_launch_agent(*, plist_path: Path, plist_content: str) -> None:
     plist_path.parent.mkdir(parents=True, exist_ok=True)
+    if plist_path.exists():
+        result = subprocess.run(
+            ["launchctl", "unload", str(plist_path)],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode != 0:
+            print(f"[warn] launchctl unload returned {result.returncode}: {result.stderr.strip()}", file=sys.stderr)
     plist_path.write_text(plist_content)
     result = subprocess.run(
         ["launchctl", "load", "-w", str(plist_path)],
