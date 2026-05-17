@@ -135,9 +135,12 @@ def _collect_interactive_answers(*, existing_secrets: Optional[dict[str, str]] =
         existing_token = existing_secrets.get("TELEGRAM_BOT_TOKEN", "")
         existing_chat = existing_secrets.get("TELEGRAM_CHAT_ID", "")
         if existing_token and existing_chat:
-            print(t("wizard.step4.use_existing"))
-            answers["telegram_bot_token"] = existing_token
-            answers["telegram_chat_id"] = existing_chat
+            if ask_yes_no(t("wizard.step4.use_existing"), default=True):
+                answers["telegram_bot_token"] = existing_token
+                answers["telegram_chat_id"] = existing_chat
+            else:
+                answers["telegram_bot_token"] = ask_string(t("wizard.step4.token"), secret=True)
+                answers["telegram_chat_id"] = ask_string(t("wizard.step4.chat_id"))
         else:
             answers["telegram_bot_token"] = ask_string(t("wizard.step4.token"), secret=True)
             answers["telegram_chat_id"] = ask_string(t("wizard.step4.chat_id"))
@@ -282,7 +285,10 @@ def run_wizard(
             "message": "QuotaMonitor setup test — CF Queue delivery is working!",
         }).encode()
         try:
-            req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+            req = urllib.request.Request(url, data=payload, headers={
+                "Content-Type": "application/json",
+                "User-Agent": "QuotaMonitor/setup",
+            })
             urllib.request.urlopen(req, timeout=10)
             print(t("wizard.test_scheduled"))
         except Exception as e:

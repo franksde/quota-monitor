@@ -12,7 +12,7 @@ MESSAGES = {
     "wizard.step3.primary": "首选通知渠道:",
     "wizard.step3.fallback": "备用通知渠道(当首选失败时):",
     "wizard.step4.title": "\n=== (4/8) Telegram 凭证 ===",
-    "wizard.step4.use_existing": "使用现有 .env 中的 Telegram 凭证。",
+    "wizard.step4.use_existing": "检测到现有 .env 中的 Telegram 凭证，是否复用？",
     "wizard.step4.token": "Bot token",
     "wizard.step4.chat_id": "Chat ID",
     "wizard.step4.test": "发送测试消息?",

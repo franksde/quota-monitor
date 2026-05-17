@@ -12,7 +12,7 @@ MESSAGES = {
     "wizard.step3.primary": "Primary notifier:",
     "wizard.step3.fallback": "Fallback when primary fails:",
     "wizard.step4.title": "\n=== (4/8) Telegram credentials ===",
-    "wizard.step4.use_existing": "Using Telegram credentials from existing .env.",
+    "wizard.step4.use_existing": "Found Telegram credentials in existing .env. Reuse them?",
     "wizard.step4.token": "Bot token",
     "wizard.step4.chat_id": "Chat ID",
     "wizard.step4.test": "Send a test message?",

@@ -50,7 +50,7 @@ def test_wizard_sends_requested_test_notification(tmp_path):
 
 def test_interactive_wizard_reuses_existing_telegram_env():
     with patch("quota_monitor.cli.setup.ask_choice", side_effect=[0, 0, 0, 2]), \
-         patch("quota_monitor.cli.setup.ask_yes_no", side_effect=[True, False, False, False]), \
+         patch("quota_monitor.cli.setup.ask_yes_no", side_effect=[True, False, True, False, False]), \
          patch("quota_monitor.cli.setup._statusline_wizard_step", return_value=True) as statusline_step, \
          patch("quota_monitor.cli.setup.ask_string", return_value="45") as ask_string:
         answers = _collect_interactive_answers(
