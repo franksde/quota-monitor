@@ -5,6 +5,7 @@ log_level = "info"
 enabled = true
 threshold_turns = 5
 window_hours = 5
+precise_threshold_percent = 30
 
 [probes.codex]
 enabled = false

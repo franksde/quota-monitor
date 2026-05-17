@@ -73,7 +73,7 @@ quota-monitor statusline uninstall
 
 ### Precise vs Estimated notifications
 
-- Precise (from statusLine): "Quota resets at 15:30"
+- Precise (from statusLine): triggers when `five_hour.used_percentage` reaches `probes.claude.precise_threshold_percent` (default `30`), then uses the exact statusLine reset time: "Quota resets at 15:30"
 - Estimated (from local logs): "Quota resets at 15:30 (estimated from local conversation logs)"
 
 ## Quickstart (manual)

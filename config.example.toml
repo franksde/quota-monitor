@@ -6,6 +6,7 @@ log_level = "info"         # "debug" | "info" | "warn" | "error"
 enabled = true
 threshold_turns = 5        # window activity count treated as "used"
 window_hours = 5
+precise_threshold_percent = 30  # statusLine precise usage percent that triggers alert
 
 [probes.codex]
 enabled = true

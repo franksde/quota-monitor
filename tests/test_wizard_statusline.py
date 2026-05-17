@@ -11,11 +11,12 @@ def test_statusline_step_fresh_install_accept(tmp_path):
     backup_path = tmp_path / "statusline_original.json"
 
     with patch("quota_monitor.cli.setup.ask_yes_no", return_value=True):
-        _statusline_wizard_step(
+        installed = _statusline_wizard_step(
             settings_path=settings_path,
             backup_path=backup_path,
         )
 
+    assert installed is True
     settings = json.loads(settings_path.read_text())
     assert "quota_monitor.statusline" in settings["statusLine"]["command"]
     assert backup_path.exists()
@@ -28,11 +29,12 @@ def test_statusline_step_fresh_install_decline(tmp_path):
     backup_path = tmp_path / "statusline_original.json"
 
     with patch("quota_monitor.cli.setup.ask_yes_no", return_value=False):
-        _statusline_wizard_step(
+        installed = _statusline_wizard_step(
             settings_path=settings_path,
             backup_path=backup_path,
         )
 
+    assert installed is False
     settings = json.loads(settings_path.read_text())
     assert "statusLine" not in settings
     assert not backup_path.exists()
@@ -47,11 +49,12 @@ def test_statusline_step_existing_tool_accept(tmp_path):
     backup_path = tmp_path / "statusline_original.json"
 
     with patch("quota_monitor.cli.setup.ask_yes_no", return_value=True):
-        _statusline_wizard_step(
+        installed = _statusline_wizard_step(
             settings_path=settings_path,
             backup_path=backup_path,
         )
 
+    assert installed is True
     settings = json.loads(settings_path.read_text())
     assert "quota_monitor.statusline" in settings["statusLine"]["command"]
     backup = json.loads(backup_path.read_text())
@@ -66,10 +69,11 @@ def test_statusline_step_already_configured(tmp_path, capsys):
     }))
     backup_path = tmp_path / "statusline_original.json"
 
-    _statusline_wizard_step(
+    installed = _statusline_wizard_step(
         settings_path=settings_path,
         backup_path=backup_path,
     )
 
+    assert installed is True
     captured = capsys.readouterr()
     assert "already configured" in captured.out.lower() or "已配置" in captured.out

@@ -5,14 +5,15 @@ from quota_monitor.cli.run import run_once
 from quota_monitor.core.window import RESET_CORRECTION_SECONDS
 
 
-def _write_config(tmp_path: Path) -> Path:
+def _write_config(tmp_path: Path, *, precise_threshold_percent: int = 30) -> Path:
     cfg = tmp_path / "config.toml"
-    cfg.write_text("""
+    cfg.write_text(f"""
 locale = "en"
 [probes.claude]
 enabled = true
 threshold_turns = 5
 window_hours = 5
+precise_threshold_percent = {precise_threshold_percent}
 [probes.codex]
 enabled = false
 [notifiers]
@@ -174,6 +175,36 @@ def test_run_once_uses_precise_when_cache_valid(tmp_path, capsys):
 
     assert rc == 0
     assert f"reset_at={int(now + 3600)}" in capsys.readouterr().out
+
+
+def test_run_once_skips_precise_alert_below_threshold(tmp_path, capsys):
+    cfg_path = _write_config(tmp_path, precise_threshold_percent=30)
+    env_path = _write_env(tmp_path)
+    state_path = tmp_path / "state.json"
+    cache_path = tmp_path / "rate_limits_cache.json"
+    calibration_path = tmp_path / "calibration.json"
+    now = 10_000.0
+    cache_path.write_text(json.dumps({
+        "captured_at": now - 60,
+        "five_hour": {"used_percentage": 20.0, "resets_at": now + 3600},
+        "seven_day": {"used_percentage": 30.0, "resets_at": now + 86400},
+    }))
+
+    fake = MagicMock(source="claude", timestamps=(), extra={})
+    with patch("quota_monitor.cli.run.scan_claude", return_value=fake), \
+         patch("quota_monitor.cli.run.platform_paths") as mock_paths:
+        mock_paths.rate_limits_cache.return_value = cache_path
+        mock_paths.calibration_file.return_value = calibration_path
+        rc = run_once(
+            config_path=cfg_path,
+            env_path=env_path,
+            state_path=state_path,
+            now=now,
+            dry_run=True,
+        )
+
+    assert rc == 0
+    assert "[dry-run] would alert" not in capsys.readouterr().out
 
 
 def test_run_once_precise_alert_omits_estimated_suffix(tmp_path):

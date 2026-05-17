@@ -6,6 +6,7 @@ class ClaudeProbeConfig:
     enabled: bool = True
     threshold_turns: int = 5
     window_hours: int = 5
+    precise_threshold_percent: int = 30
 
 
 @dataclass(frozen=True)

@@ -34,8 +34,13 @@ def load_config(toml_path: Path, env_path: Path | None) -> Config:
         raise ConfigError(f"locale must be one of {VALID_LOCALES}, got {locale!r}")
 
     probes_block = data.get("probes", {})
+    claude_probe = ClaudeProbeConfig(**(probes_block.get("claude") or {}))
+    if not 0 <= claude_probe.precise_threshold_percent <= 100:
+        raise ConfigError(
+            "probes.claude.precise_threshold_percent must be between 0 and 100"
+        )
     probes = ProbesConfig(
-        claude=ClaudeProbeConfig(**(probes_block.get("claude") or {})),
+        claude=claude_probe,
         codex=CodexProbeConfig(**(probes_block.get("codex") or {})),
     )
 

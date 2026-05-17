@@ -99,11 +99,14 @@ def run_once(
 
     if precise is not None:
         claude_source_type = "precise"
-        claude_window = LatestWindow(
-            start=precise.five_hour_resets_at - (cfg.probes.claude.window_hours * 3600),
-            reset=precise.five_hour_resets_at,
-            count=cfg.probes.claude.threshold_turns,
-        )
+        if precise.five_hour_pct >= cfg.probes.claude.precise_threshold_percent:
+            claude_window = LatestWindow(
+                start=precise.five_hour_resets_at - (cfg.probes.claude.window_hours * 3600),
+                reset=precise.five_hour_resets_at,
+                count=cfg.probes.claude.threshold_turns,
+            )
+        else:
+            claude_window = None
 
         if claude_result is not None:
             computed = replay_windows(claude_result.timestamps, correction=0.0)

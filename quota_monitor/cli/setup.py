@@ -26,6 +26,7 @@ log_level = "info"
 enabled = {"true" if answers.get("claude_enabled", True) else "false"}
 threshold_turns = 5
 window_hours = 5
+precise_threshold_percent = {int(answers.get("claude_precise_threshold_percent", 30))}
 
 [probes.codex]
 enabled = {"true" if answers.get("codex_enabled", False) else "false"}
@@ -58,12 +59,12 @@ def _render_env(answers: dict) -> str:
     )
 
 
-def _statusline_wizard_step(*, settings_path: Path, backup_path: Path) -> None:
+def _statusline_wizard_step(*, settings_path: Path, backup_path: Path) -> bool:
     state = detect_existing_statusline(settings_path)
 
     if state == StatusLineState.OUR_WRAPPER:
         print(t("wizard.statusline.already_configured"))
-        return
+        return True
 
     if state == StatusLineState.NONE:
         prompt = t("wizard.statusline.enable_fresh")
@@ -82,6 +83,23 @@ def _statusline_wizard_step(*, settings_path: Path, backup_path: Path) -> None:
     if ask_yes_no(prompt, default=True):
         install_wrapper(settings_path=settings_path, backup_path=backup_path)
         print(t("wizard.statusline.installed"))
+        return True
+    return False
+
+
+def _ask_percent(prompt: str, *, default: int = 30) -> int:
+    while True:
+        raw = ask_string(f"{prompt} [{default}]")
+        if not raw:
+            return default
+        try:
+            value = int(raw)
+        except ValueError:
+            print("please enter a number between 0 and 100")
+            continue
+        if 0 <= value <= 100:
+            return value
+        print("please enter a number between 0 and 100")
 
 
 def _collect_interactive_answers(*, existing_secrets: Optional[dict[str, str]] = None) -> dict:
@@ -161,10 +179,15 @@ def _collect_interactive_answers(*, existing_secrets: Optional[dict[str, str]] =
 
     print(t("wizard.statusline.title", step="7/8"))
     from ..platform import paths as platform_paths
-    _statusline_wizard_step(
+    statusline_enabled = _statusline_wizard_step(
         settings_path=platform_paths.claude_settings_file(),
         backup_path=platform_paths.statusline_original(),
     )
+    if statusline_enabled:
+        answers["claude_precise_threshold_percent"] = _ask_percent(
+            t("wizard.statusline.precise_threshold"),
+            default=30,
+        )
 
     print(t("wizard.step7.title"))
     sched_idx = ask_choice(

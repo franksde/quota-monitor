@@ -60,6 +60,9 @@ MESSAGES = {
     ),
     "wizard.statusline.already_configured": "StatusLine wrapper already configured. Skipping.",
     "wizard.statusline.installed": "✓ StatusLine wrapper installed.",
+    "wizard.statusline.precise_threshold": (
+        "When precise Claude quota usage is available, alert at what usage percentage?"
+    ),
 
     "cli.status.no_state": "No state yet. Run `quota-monitor run` first.",
     "cli.status.window": "{source} window: starts {start}, resets {reset}",

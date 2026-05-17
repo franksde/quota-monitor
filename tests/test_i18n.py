@@ -39,6 +39,7 @@ def test_statusline_wizard_keys_exist_en():
     assert "[missing" not in t("wizard.statusline.enable_fresh")
     assert "[missing" not in t("wizard.statusline.enable_existing", cmd_preview="test")
     assert "[missing" not in t("wizard.statusline.already_configured")
+    assert "[missing" not in t("wizard.statusline.precise_threshold")
 
 
 def test_statusline_wizard_keys_exist_zh():
@@ -47,6 +48,7 @@ def test_statusline_wizard_keys_exist_zh():
     assert "[missing" not in t("wizard.statusline.enable_fresh")
     assert "[missing" not in t("wizard.statusline.enable_existing", cmd_preview="test")
     assert "[missing" not in t("wizard.statusline.already_configured")
+    assert "[missing" not in t("wizard.statusline.precise_threshold")
 
 
 def test_uninstall_statusline_keys():

@@ -59,6 +59,7 @@ MESSAGES = {
     ),
     "wizard.statusline.already_configured": "StatusLine wrapper 已配置，跳过。",
     "wizard.statusline.installed": "✓ StatusLine wrapper 已安装。",
+    "wizard.statusline.precise_threshold": "当可以读取 Claude 精确额度用量时，达到多少百分比触发提醒？",
 
     "cli.status.no_state": "尚无状态。请先运行 `quota-monitor run`。",
     "cli.status.window": "{source} 窗口:起 {start},终 {reset}",

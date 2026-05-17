@@ -22,6 +22,7 @@ def test_wizard_non_interactive_writes_config_and_env(tmp_path):
     assert rc == 0
     cfg_text = config_path.read_text()
     assert 'locale = "en"' in cfg_text
+    assert "precise_threshold_percent = 30" in cfg_text
     assert "[notifiers.cloudflare_relay]" in cfg_text
     assert "[keepalive]" in cfg_text
     env_text = env_path.read_text()
@@ -50,18 +51,19 @@ def test_wizard_sends_requested_test_notification(tmp_path):
 def test_interactive_wizard_reuses_existing_telegram_env():
     with patch("quota_monitor.cli.setup.ask_choice", side_effect=[0, 0, 0, 2]), \
          patch("quota_monitor.cli.setup.ask_yes_no", side_effect=[True, False, False, False]), \
-         patch("quota_monitor.cli.setup._statusline_wizard_step") as statusline_step, \
-         patch("quota_monitor.cli.setup.ask_string") as ask_string:
+         patch("quota_monitor.cli.setup._statusline_wizard_step", return_value=True) as statusline_step, \
+         patch("quota_monitor.cli.setup.ask_string", return_value="45") as ask_string:
         answers = _collect_interactive_answers(
             existing_secrets={
                 "TELEGRAM_BOT_TOKEN": "EXISTING_TOKEN",
                 "TELEGRAM_CHAT_ID": "EXISTING_CHAT",
             }
         )
-    ask_string.assert_not_called()
+    ask_string.assert_called_once()
     statusline_step.assert_called_once()
     assert answers["telegram_bot_token"] == "EXISTING_TOKEN"
     assert answers["telegram_chat_id"] == "EXISTING_CHAT"
+    assert answers["claude_precise_threshold_percent"] == 45
 
 
 def test_wizard_aborts_when_preflight_missing_required(tmp_path):

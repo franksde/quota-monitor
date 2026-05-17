@@ -72,7 +72,7 @@ quota-monitor statusline uninstall
 
 ### 精确值 vs 估算值通知
 
-- 精确值（来自 statusLine）：「额度将于 15:30 恢复」
+- 精确值（来自 statusLine）：当 `five_hour.used_percentage` 达到 `probes.claude.precise_threshold_percent`（默认 `30`）时触发，并使用 statusLine 的精确 reset 时间：「额度将于 15:30 恢复」
 - 估算值（来自本地日志）：「额度将于 15:30 恢复（根据本地对话记录时间估算）」
 
 ## 快速开始（手动）
