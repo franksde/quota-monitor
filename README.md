@@ -49,9 +49,13 @@ quota-monitor can read real-time quota data directly from Claude Code via its [s
    - Writes it to a local cache (`~/.quota-monitor/rate_limits_cache.json`)
    - Forwards everything to your original statusLine tool (if any)
    - Returns the original output unchanged
-3. When quota-monitor runs its periodic scan, it checks the cache first:
-   - **Cache valid** → uses precise values (exact percentage and reset time)
-   - **Cache expired** → falls back to local file replay estimation
+3. When quota-monitor runs its periodic scan, it resolves precise data through a priority chain:
+   1. **Own wrapper cache** (above) — fastest when Claude Code's statusline payload carries fresh `rate_limits`
+   2. **`claude-hud` cache** — if you run [claude-hud](https://github.com/jarrodwatts/claude-hud), we read its `.usage-cache.json` (it polls Anthropic's OAuth usage API every 5 min, so it's accurate when our own cache goes stale due to cc switch / third-party routing)
+   3. **`oh-my-claude` cache** — same idea, different schema; we read its `.usage-cache-anthropic.json`
+   4. **Replay-window estimate** — last-resort heuristic from local jsonl timestamps (hour-level error in third-party scenarios)
+
+   Adding a new HUD adapter is ~50 lines; see [`docs/adding-hud-adapter.md`](docs/adding-hud-adapter.md).
 
 ### Compatibility
 

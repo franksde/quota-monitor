@@ -16,7 +16,9 @@ from pathlib import Path
 
 import pytest
 
-from quota_monitor.probes.hud_adapters import HudUsageData, read_claude_hud
+from quota_monitor.probes.hud_adapters import (
+    HudUsageData, read_claude_hud, read_oh_my_claude,
+)
 
 
 def _write_claude_hud_cache(home: Path, *, data: dict, timestamp_ms: int) -> None:
@@ -115,3 +117,77 @@ def test_returns_none_when_iso_timestamp_malformed(tmp_path):
         timestamp_ms=int(now * 1000) - 1000,
     )
     assert read_claude_hud(now, home=tmp_path) is None
+
+
+# --- oh-my-claude adapter ---
+
+def _write_omc_cache(home: Path, *, data: dict, timestamp_ms: int) -> None:
+    p = home / ".claude" / "plugins" / "oh-my-claudecode" / ".usage-cache-anthropic.json"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps({
+        "timestamp": timestamp_ms,
+        "data": data,
+        "error": False,
+        "source": "anthropic",
+        "lastSuccessAt": timestamp_ms,
+    }))
+
+
+def test_omc_returns_data_when_reset_in_future(tmp_path):
+    now = 1779000000.0
+    _write_omc_cache(
+        tmp_path,
+        data={
+            "fiveHourPercent": 71,
+            "weeklyPercent": 70,
+            "fiveHourResetsAt": "2026-05-17T18:46:40.000Z",  # +1h
+            "weeklyResetsAt": "2026-05-21T18:00:00.000Z",
+        },
+        timestamp_ms=int(now * 1000) - 30_000,
+    )
+    res = read_oh_my_claude(now, home=tmp_path)
+    assert res is not None
+    assert res.source == "oh-my-claude"
+    assert res.five_hour_pct == 71.0
+    assert res.seven_day_pct == 70.0
+    assert res.five_hour_resets_at > now
+
+
+def test_omc_returns_none_when_file_missing(tmp_path):
+    assert read_oh_my_claude(1779000000.0, home=tmp_path) is None
+
+
+def test_omc_returns_none_when_json_broken(tmp_path):
+    p = tmp_path / ".claude" / "plugins" / "oh-my-claudecode" / ".usage-cache-anthropic.json"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text("{ not json")
+    assert read_oh_my_claude(1779000000.0, home=tmp_path) is None
+
+
+def test_omc_returns_none_when_five_hour_reset_long_past(tmp_path):
+    """User uninstalled omc, cache file lingers with old reset_at. The grace
+    check naturally rejects it. Pinning the behaviour because this is exactly
+    the situation on the dev's own machine right now."""
+    now = 1779000000.0
+    _write_omc_cache(
+        tmp_path,
+        data={
+            "fiveHourPercent": 71,
+            "weeklyPercent": 70,
+            # 5 days ago — definitely past 30-min grace
+            "fiveHourResetsAt": "2026-05-12T01:20:00.000Z",
+            "weeklyResetsAt": "2026-05-21T18:00:00.000Z",
+        },
+        timestamp_ms=int(now * 1000) - 5 * 86400 * 1000,
+    )
+    assert read_oh_my_claude(now, home=tmp_path) is None
+
+
+def test_omc_returns_none_when_required_fields_missing(tmp_path):
+    now = 1779000000.0
+    _write_omc_cache(
+        tmp_path,
+        data={"fiveHourPercent": 71},  # weekly + resets fields missing
+        timestamp_ms=int(now * 1000) - 1000,
+    )
+    assert read_oh_my_claude(now, home=tmp_path) is None

@@ -48,9 +48,13 @@ quota-monitor 可以通过 Claude Code 的 [statusLine](https://docs.anthropic.c
    - 写入本地缓存（`~/.quota-monitor/rate_limits_cache.json`）
    - 将所有内容转发给原始 statusLine 工具（如有）
    - 原样返回原始输出
-3. quota-monitor 定时扫描时，优先检查缓存：
-   - **缓存有效** → 使用精确值（确切百分比和重置时间）
-   - **缓存过期** → 回退到本地文件重放估算
+3. quota-monitor 定时扫描时，按优先级链解析精确数据：
+   1. **自己的 wrapper 缓存**（上面）— Claude Code statusline payload 带新 `rate_limits` 时最快
+   2. **`claude-hud` 缓存** — 如果你装了 [claude-hud](https://github.com/jarrodwatts/claude-hud)，读它的 `.usage-cache.json`（它每 5 分钟主动调 Anthropic OAuth usage API，所以即使我们 wrapper 因 cc switch / 第三方路由而陈旧也能拿到准确值）
+   3. **`oh-my-claude` 缓存** — 同思路，schema 不同；读它的 `.usage-cache-anthropic.json`
+   4. **重放估算** — 兜底启发式，从本地 jsonl 时间戳算（第三方场景下小时级误差）
+
+   接入新 HUD adapter 大约 ~50 行；见 [`docs/adding-hud-adapter.md`](docs/adding-hud-adapter.md)。
 
 ### 兼容性
 

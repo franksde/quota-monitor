@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from .hud_adapters import RESET_GRACE_SECONDS, read_claude_hud
+from .hud_adapters import RESET_GRACE_SECONDS, read_claude_hud, read_oh_my_claude
 
 MAX_CACHE_AGE_SECONDS = 6 * 3600
 
@@ -71,14 +71,15 @@ def read_precise(cache_path: Path, *, now: float) -> Optional[PreciseUsage]:
     if direct is not None:
         return direct
 
-    hud = read_claude_hud(now)
-    if hud is not None:
-        return PreciseUsage(
-            five_hour_pct=hud.five_hour_pct,
-            five_hour_resets_at=hud.five_hour_resets_at,
-            seven_day_pct=hud.seven_day_pct,
-            seven_day_resets_at=hud.seven_day_resets_at,
-            captured_at=hud.captured_at,
-        )
+    for hud_reader in (read_claude_hud, read_oh_my_claude):
+        hud = hud_reader(now)
+        if hud is not None:
+            return PreciseUsage(
+                five_hour_pct=hud.five_hour_pct,
+                five_hour_resets_at=hud.five_hour_resets_at,
+                seven_day_pct=hud.seven_day_pct,
+                seven_day_resets_at=hud.seven_day_resets_at,
+                captured_at=hud.captured_at,
+            )
 
     return None

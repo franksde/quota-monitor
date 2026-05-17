@@ -14,7 +14,7 @@ def _write_cache(tmp_path, data):
 
 
 def test_read_precise_returns_none_if_missing(tmp_path):
-    with patch("quota_monitor.probes.precise.read_claude_hud", return_value=None):
+    with patch("quota_monitor.probes.precise.read_claude_hud", return_value=None), patch("quota_monitor.probes.precise.read_oh_my_claude", return_value=None):
         result = read_precise(tmp_path / "missing.json", now=time.time())
     assert result is None
 
@@ -22,7 +22,7 @@ def test_read_precise_returns_none_if_missing(tmp_path):
 def test_read_precise_returns_none_if_malformed(tmp_path):
     path = tmp_path / "cache.json"
     path.write_text("not json")
-    with patch("quota_monitor.probes.precise.read_claude_hud", return_value=None):
+    with patch("quota_monitor.probes.precise.read_claude_hud", return_value=None), patch("quota_monitor.probes.precise.read_oh_my_claude", return_value=None):
         assert read_precise(path, now=time.time()) is None
 
 
@@ -35,7 +35,7 @@ def test_read_precise_returns_none_if_five_hour_expired_past_grace(tmp_path):
         "five_hour": {"used_percentage": 50.0, "resets_at": now - 45 * 60},
         "seven_day": {"used_percentage": 20.0, "resets_at": now + 9999},
     })
-    with patch("quota_monitor.probes.precise.read_claude_hud", return_value=None):
+    with patch("quota_monitor.probes.precise.read_claude_hud", return_value=None), patch("quota_monitor.probes.precise.read_oh_my_claude", return_value=None):
         assert read_precise(path, now=now) is None
 
 
@@ -46,7 +46,7 @@ def test_read_precise_returns_none_if_captured_too_old(tmp_path):
         "five_hour": {"used_percentage": 50.0, "resets_at": 99999.0},
         "seven_day": {"used_percentage": 20.0, "resets_at": 99999.0},
     })
-    with patch("quota_monitor.probes.precise.read_claude_hud", return_value=None):
+    with patch("quota_monitor.probes.precise.read_claude_hud", return_value=None), patch("quota_monitor.probes.precise.read_oh_my_claude", return_value=None):
         assert read_precise(path, now=now) is None
 
 
@@ -109,7 +109,8 @@ def test_read_precise_prefers_own_cache_over_hud_when_fresh(tmp_path):
 
 def test_read_precise_falls_back_to_hud_when_own_cache_missing(tmp_path):
     now = 1000.0
-    with patch("quota_monitor.probes.precise.read_claude_hud") as hud:
+    with patch("quota_monitor.probes.precise.read_claude_hud") as hud, \
+         patch("quota_monitor.probes.precise.read_oh_my_claude", return_value=None):
         hud.return_value = _hud()
         result = read_precise(tmp_path / "no-cache.json", now=now)
     assert result is not None
@@ -129,15 +130,41 @@ def test_read_precise_falls_back_to_hud_when_own_cache_reset_past_grace(tmp_path
         "five_hour": {"used_percentage": 92.0, "resets_at": now - 45 * 60},
         "seven_day": {"used_percentage": 30.0, "resets_at": now + 99999},
     })
-    with patch("quota_monitor.probes.precise.read_claude_hud") as hud:
+    with patch("quota_monitor.probes.precise.read_claude_hud") as hud, \
+         patch("quota_monitor.probes.precise.read_oh_my_claude", return_value=None):
         hud.return_value = _hud()
         result = read_precise(path, now=now)
     assert result is not None
     assert result.five_hour_pct == 63.0  # HUD data, not 92.0
 
 
-def test_read_precise_returns_none_when_both_sources_unavailable(tmp_path):
+def test_read_precise_falls_back_to_oh_my_claude_when_claude_hud_unavailable(tmp_path):
+    """User runs oh-my-claude instead of claude-hud — second HUD in priority
+    chain. Pins the chain order: own > claude-hud > oh-my-claude."""
     now = 1000.0
-    with patch("quota_monitor.probes.precise.read_claude_hud", return_value=None):
+    with patch("quota_monitor.probes.precise.read_claude_hud", return_value=None), \
+         patch("quota_monitor.probes.precise.read_oh_my_claude") as omc:
+        omc.return_value = _hud(five_hour_pct=71.0, source="oh-my-claude")
+        result = read_precise(tmp_path / "no-cache.json", now=now)
+    assert result is not None
+    assert result.five_hour_pct == 71.0
+
+
+def test_read_precise_prefers_claude_hud_over_oh_my_claude(tmp_path):
+    """Both HUDs present — claude-hud (priority 2) wins over omc (priority 3)."""
+    now = 1000.0
+    with patch("quota_monitor.probes.precise.read_claude_hud") as hud, \
+         patch("quota_monitor.probes.precise.read_oh_my_claude") as omc:
+        hud.return_value = _hud(five_hour_pct=63.0, source="claude-hud")
+        omc.return_value = _hud(five_hour_pct=99.0, source="oh-my-claude")  # would be wrong if used
+        result = read_precise(tmp_path / "no-cache.json", now=now)
+    assert result.five_hour_pct == 63.0
+    omc.assert_not_called()  # short-circuit after claude-hud hit
+
+
+def test_read_precise_returns_none_when_all_sources_unavailable(tmp_path):
+    now = 1000.0
+    with patch("quota_monitor.probes.precise.read_claude_hud", return_value=None), \
+         patch("quota_monitor.probes.precise.read_oh_my_claude", return_value=None):
         result = read_precise(tmp_path / "no-cache.json", now=now)
     assert result is None

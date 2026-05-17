@@ -55,6 +55,51 @@ def _parse_iso8601_to_epoch(s) -> Optional[float]:
         return None
 
 
+def read_oh_my_claude(now: float, *, home: Optional[Path] = None) -> Optional[HudUsageData]:
+    """Probe ~/.claude/plugins/oh-my-claudecode/.usage-cache-anthropic.json.
+
+    Same idea as read_claude_hud, different field names (fiveHourPercent
+    vs fiveHour, fiveHourResetsAt vs fiveHourResetAt). Same freshness rule
+    (reset must be in the future or within RESET_GRACE_SECONDS in the past).
+    """
+    home = home or Path.home()
+    cache_path = home / ".claude" / "plugins" / "oh-my-claudecode" / ".usage-cache-anthropic.json"
+    if not cache_path.exists():
+        return None
+    try:
+        raw = json.loads(cache_path.read_text())
+    except (json.JSONDecodeError, OSError):
+        return None
+
+    timestamp_ms = raw.get("timestamp")
+    if not isinstance(timestamp_ms, (int, float)) or timestamp_ms <= 0:
+        return None
+    captured_at = float(timestamp_ms) / 1000.0
+
+    data = raw.get("data") or {}
+    five_hour_pct = data.get("fiveHourPercent")
+    seven_day_pct = data.get("weeklyPercent")
+    if not isinstance(five_hour_pct, (int, float)) or not isinstance(seven_day_pct, (int, float)):
+        return None
+
+    five_hour_resets_at = _parse_iso8601_to_epoch(data.get("fiveHourResetsAt"))
+    seven_day_resets_at = _parse_iso8601_to_epoch(data.get("weeklyResetsAt"))
+    if five_hour_resets_at is None or seven_day_resets_at is None:
+        return None
+
+    if five_hour_resets_at < now - RESET_GRACE_SECONDS:
+        return None
+
+    return HudUsageData(
+        five_hour_pct=float(five_hour_pct),
+        five_hour_resets_at=five_hour_resets_at,
+        seven_day_pct=float(seven_day_pct),
+        seven_day_resets_at=seven_day_resets_at,
+        captured_at=captured_at,
+        source="oh-my-claude",
+    )
+
+
 def read_claude_hud(now: float, *, home: Optional[Path] = None) -> Optional[HudUsageData]:
     """Probe ~/.claude/plugins/claude-hud/.usage-cache.json.
 
