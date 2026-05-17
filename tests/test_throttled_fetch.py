@@ -15,6 +15,12 @@ def test_should_skip_when_threshold_reached_and_reset_is_future():
     assert should_skip_fetch(hint=hint, threshold_percent=30, now=1_100.0) is True
 
 
+def test_should_fetch_above_threshold_when_fallback_interval_elapsed():
+    hint = FetchHint(last_fetch_at=1_000, last_used_percent=30, last_reset_at=4_000)
+
+    assert should_skip_fetch(hint=hint, threshold_percent=30, now=2_861.0) is False
+
+
 def test_should_fetch_when_dynamic_interval_elapsed():
     hint = FetchHint(last_fetch_at=1_000, last_used_percent=5, last_reset_at=4_000)
 

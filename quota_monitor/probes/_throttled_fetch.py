@@ -40,7 +40,8 @@ def should_skip_fetch(
     if hint.last_reset_at <= now:
         return False
     if hint.last_used_percent >= threshold_percent:
-        return True
+        above_threshold_interval = 30 * 60
+        return now - hint.last_fetch_at < above_threshold_interval
 
     interval = compute_dynamic_interval(
         hint.last_used_percent,
