@@ -1,0 +1,104 @@
+# Changelog
+
+## v0.2.0 — 2026-05-17
+
+Substantial rewrite of the alert and probe pipelines based on field
+observations. All changes are backward compatible at the config/CLI
+surface; existing installs upgrade by pulling the new code and re-running
+`quota-monitor setup` (or hand-patching: see CF KV note below).
+
+### Highlights
+
+- **Alert model rewritten as "recovered" notification.** Previously
+  triggered when `reset > now` with a message that read "has reset" —
+  semantically lying. Now fires at the reset moment (within 30-min
+  grace) with matching message. Cooldown anchored to `reset_at + grace`,
+  not wall-clock 4h, so it can no longer straddle and swallow the next
+  legitimate alert. Fixes the 5-pushes-in-80-minutes spam observed on
+  2026-05-17.
+- **CF Queue schedule-ahead mode** (`primary = cloudflare_relay`):
+  threshold detection decoupled from delivery moment. When the
+  threshold is hit at any LaunchAgent tick, the alert is queued with
+  `delaySeconds = reset_at - now`; CF Worker delivers exactly at reset.
+  Survives the user closing the terminal, the LaunchAgent missing
+  ticks, all caches going stale.
+- **KV tombstone for in-flight schedules.** New optional KV namespace
+  `SCHEDULE_TOMBSTONE` lets a later, more-precise schedule supersede
+  earlier queued copies for the same logical window. Setup wizard
+  provisions automatically; old workers without KV degrade to
+  "no dedupe" (may produce 2-3 duplicates instead of 1).
+- **HUD adapter chain.** `precise.py` now resolves through:
+  own statusline-wrapper cache → `claude-hud` → `oh-my-claude` → estimated.
+  Adds `read_oh_my_claude()` for users who run that statusline tool.
+  Adding new HUDs is ~50 lines, see `docs/adding-hud-adapter.md`.
+- **Codex probe adaptive throttling.** Distance-from-threshold-aware
+  fetch cadence: far below threshold → 20-min interval, near threshold
+  → 5-min. Above-threshold + reset still in future → fully skip API
+  call. Generic `_throttled_fetch.py` helpers reusable for future
+  API-backed probes.
+- **statusLine wrapper self-heal.** Detects when external tools (`cc-switch`
+  swaps a full settings.json per provider) overwrite our statusLine
+  entry and silently reinstalls. `quota-monitor uninstall` now removes
+  the backup so self-heal doesn't undo a deliberate uninstall.
+
+### Other notable changes
+
+- `costs.jsonl` no longer scanned for activity (every entry was an empty
+  placeholder for the observed install; was shifting computed reset by
+  ±30 min). `tool_result` user-wrapper records ARE still counted (they
+  represent real API calls; commit `a8c77a5` pins this against future
+  regression).
+- Local-command jsonl records (`/usage`, slash-commands without an
+  assistant requestId) excluded from probe timestamps.
+- `last_known_good_reset_at` cached from precise/HUD data, used as a
+  stable anchor when later falling back to replay estimation. Drives
+  keepalive timing too — seamless no longer fires hours early when
+  replay drifts.
+- Keepalive: dropped the `polling` strategy (architecturally broken),
+  kept only `seamless`. Restored tmux dependency (after a brief
+  detour to nohup) and resolved via absolute path so launchd's
+  restricted PATH still finds it. LaunchAgent plist now sets PATH to
+  include Homebrew + MacPorts. Keepalive invocation uses `--bare
+  --system-prompt ping --tools '' --disable-slash-commands` so the
+  renewal call costs roughly zero quota instead of ~3%.
+- Alert and status output use **local time, no UTC suffix** —
+  notifications meet users where they are.
+- Anchor-based replay (`window_from_known_reset`) reduces estimated-mode
+  drift when a precise reset has recently been known.
+
+### Bug fixes (representative)
+
+- `fix(probe)`: ignore `costs.jsonl` placeholder noise
+- `fix(probe)`: ignore local-command timestamps
+- `fix(alert)`: cooldown-based dedupe stops 5-pushes-in-80-min spam
+- `fix(alert)`: "recovered" model + reset-anchored cooldown
+- `fix(keepalive)`: drop tmux dependency / restore it with absolute path
+- `fix(launchagent)`: plist PATH lets brew tools be discoverable
+- `fix(statusline)`: self-heal when external tools overwrite settings.json
+- `fix(setup)`: ask before reusing Telegram creds; fix CF 403; create
+  CF Queue before deploying worker
+
+### Docs
+
+- `docs/ARCHITECTURE.md` fully refreshed to match current shape
+- `docs/adding-hud-adapter.md` new — contribution guide for HUD adapters
+- `docs/cloudflare.md`, `cloudflare-relay/README.md` updated for KV
+  tombstone
+- README (EN + ZH) updated for precise priority chain and concrete
+  measured drift numbers in third-party scenarios
+
+### Known limitations
+
+- Users on `cc switch` (third-party model routing) **with no HUD tool
+  installed** fall to the estimated replay path; expect hour-level
+  reset-time error. Install claude-hud or oh-my-claude to get precise
+  data via piggyback.
+- Users who use Claude **only via web/mobile** with the local terminal
+  never opened: all data sources go stale (everything in the chain is
+  passively triggered by Claude Code statusline calls). Phase 3 work
+  (quota-monitor self-fetching from Anthropic's OAuth usage API) would
+  solve this; not in v0.2.0.
+
+### Testing
+
+237 passing tests (up from ~140 at v0.1.0), still Python stdlib only.
