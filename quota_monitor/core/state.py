@@ -1,3 +1,4 @@
+import fcntl
 import json
 import os
 import sys
@@ -96,8 +97,14 @@ def load_state(path: Path) -> State:
 
 def save_state(path: Path, state: State) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
     payload = asdict(state)
-    # Convert tuples (json doesn't preserve type but lists are fine on load).
-    tmp.write_text(json.dumps(payload, indent=2))
-    os.replace(tmp, path)
+    lock_path = path.with_suffix(path.suffix + ".lock")
+    with lock_path.open("a") as lock_file:
+        fcntl.flock(lock_file, fcntl.LOCK_EX)
+        try:
+            tmp = path.with_suffix(path.suffix + ".tmp")
+            # Convert tuples (json doesn't preserve type but lists are fine on load).
+            tmp.write_text(json.dumps(payload, indent=2))
+            os.replace(tmp, path)
+        finally:
+            fcntl.flock(lock_file, fcntl.LOCK_UN)

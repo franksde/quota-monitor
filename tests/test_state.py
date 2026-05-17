@@ -1,4 +1,5 @@
 import json
+import threading
 from dataclasses import replace
 from pathlib import Path
 import pytest
@@ -104,3 +105,41 @@ def test_atomic_write_no_partial_state(tmp_path, monkeypatch):
         save_state(path, s)
     # Original file unchanged.
     assert path.read_text() == original
+
+
+def test_concurrent_save_state_serializes_tmp_write(tmp_path, monkeypatch):
+    path = tmp_path / "state.json"
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    barrier = threading.Barrier(2)
+    original_write_text = Path.write_text
+
+    def slow_tmp_write(self, *args, **kwargs):
+        result = original_write_text(self, *args, **kwargs)
+        if self == tmp:
+            try:
+                barrier.wait(timeout=0.2)
+            except threading.BrokenBarrierError:
+                pass
+        return result
+
+    monkeypatch.setattr(Path, "write_text", slow_tmp_write)
+    states = [
+        replace(default_state(), claude=ClaudeState(alerted_for_reset=111)),
+        replace(default_state(), claude=ClaudeState(alerted_for_reset=222)),
+    ]
+    errors = []
+
+    def worker(state):
+        try:
+            save_state(path, state)
+        except Exception as e:
+            errors.append(e)
+
+    threads = [threading.Thread(target=worker, args=(state,)) for state in states]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert errors == []
+    assert load_state(path).claude.alerted_for_reset in {111, 222}
