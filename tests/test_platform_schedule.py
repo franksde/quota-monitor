@@ -24,6 +24,20 @@ def test_plist_contains_label_program_and_interval(tmp_path):
     assert "<true/>" in plist
 
 
+def test_plist_sets_path_to_include_homebrew_and_macports(tmp_path):
+    """LaunchAgent's default PATH excludes brew/macports, so plain `tmux` or
+    `claude` lookups fail. plist must set PATH explicitly."""
+    plist = generate_launch_agent_plist(
+        label="x", program_arguments=["/p"], interval_seconds=300,
+        stdout_log=tmp_path / "o", stderr_log=tmp_path / "e",
+    )
+    parsed = plistlib.loads(plist.encode())
+    path = parsed["EnvironmentVariables"]["PATH"]
+    assert "/opt/homebrew/bin" in path     # Apple Silicon brew
+    assert "/usr/local/bin" in path        # Intel brew
+    assert "/usr/bin" in path              # system fallback
+
+
 def test_plist_escapes_xml_special_characters(tmp_path):
     plist = generate_launch_agent_plist(
         label="io.github.frank.qm&dev",

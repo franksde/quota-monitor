@@ -17,6 +17,11 @@ def generate_launch_agent_plist(
     stderr_log: Path,
 ) -> str:
     args_xml = "\n".join(f"    <string>{_xml_text(a)}</string>" for a in program_arguments)
+    # PATH explicitly includes both Homebrew prefixes (Apple Silicon and
+    # Intel) and MacPorts. launchd's default PATH is /usr/bin:/bin:/usr/sbin:/sbin
+    # which can't find brew-installed tmux, claude, node, etc. — the cause of
+    # the silent keepalive failures users have hit in the wild.
+    path_value = "/opt/homebrew/bin:/usr/local/bin:/opt/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -27,6 +32,11 @@ def generate_launch_agent_plist(
   <array>
 {args_xml}
   </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>{path_value}</string>
+  </dict>
   <key>StartInterval</key>
   <integer>{interval_seconds}</integer>
   <key>RunAtLoad</key>
