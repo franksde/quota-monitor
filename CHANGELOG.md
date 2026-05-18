@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.2.3 — 2026-05-18
+
+- `fix(setup)`: the wizard could silently fail to wire the
+  `SCHEDULE_TOMBSTONE` KV namespace into `wrangler.toml` on wrangler 4.x
+  installs, because `wrangler kv namespace list` prepends a version banner
+  to stdout that broke `json.loads`. The deployed Worker then ran without
+  tombstone dedupe and delivered every queued reset-recovered alert —
+  observed in the wild as **6 duplicate "Claude quota recovered"
+  notifications at a single window reset** on 2026-05-18.
+  - `_wrangler.py` now strips the wrangler banner before parsing and
+    surfaces the underlying error instead of swallowing it.
+  - The create-output id extractor also tolerates the JSON-form config
+    snippet some wrangler versions emit (defense in depth).
+- `test(wizard)`: regression tests reproducing both the
+  "namespace already exists → list-fallback" recovery path and the
+  fresh-create happy path under wrangler 4.x output formats.
+
+Existing CF relay installs that were affected: re-run `quota-monitor setup`
+(or hand-add the `[[kv_namespaces]]` block to
+`~/.quota-monitor/cloudflare-relay/wrangler.toml` and re-run
+`wrangler deploy`) to bind `SCHEDULE_TOMBSTONE` and restore dedupe.
+
 ## v0.2.2 — 2026-05-18
 
 - `fix(setup)`: bundle Cloudflare relay assets inside the Python package so

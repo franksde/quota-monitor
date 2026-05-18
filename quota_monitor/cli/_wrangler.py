@@ -1,9 +1,59 @@
+import json
 import re
 import subprocess
 import sys
 from importlib import resources
 from pathlib import Path
 from typing import Optional
+
+
+# Wrangler 4.x prefixes stdout with a version banner ("⛅️ wrangler 4.x.x" + a
+# rule line) before the actual command output. JSON parsers will choke on this,
+# so all helpers below tolerate leading non-JSON garbage by anchoring on the
+# first '[' or '{'.
+
+def _strip_to_json(text: str) -> str:
+    matches = [i for i in (text.find("["), text.find("{")) if i != -1]
+    if not matches:
+        return text
+    return text[min(matches):]
+
+
+def _extract_kv_id(text: str) -> Optional[str]:
+    """Extract the KV namespace id from a `wrangler kv namespace create`
+    success output. Wrangler has emitted at least two formats across versions:
+
+      TOML config snippet: `id = "abc..."`
+      JSON config snippet: `"id": "abc..."`
+
+    Both wrappers are handled. KV ids are 32-char lowercase hex.
+    """
+    m = re.search(r'"id"\s*:\s*"([0-9a-f]{16,})"', text)
+    if m:
+        return m.group(1)
+    m = re.search(r'\bid\s*=\s*"([0-9a-f]{16,})"', text)
+    if m:
+        return m.group(1)
+    return None
+
+
+def _find_kv_id_in_list(list_out: str, target_name: str) -> Optional[str]:
+    """Locate the id for `target_name` in `wrangler kv namespace list` JSON
+    output. Banner-tolerant."""
+    payload = _strip_to_json(list_out)
+    try:
+        data = json.loads(payload)
+    except json.JSONDecodeError as e:
+        print(f"[warn] could not parse KV namespace list output: {e}", file=sys.stderr)
+        return None
+    if not isinstance(data, list):
+        return None
+    for ns in data:
+        if not isinstance(ns, dict):
+            continue
+        if ns.get("title", "").endswith(target_name):
+            return ns.get("id")
+    return None
 
 
 def _run_wrangler(args: list[str], *, cwd: Path, stdin: Optional[str] = None) -> tuple[int, str, str]:
@@ -106,21 +156,20 @@ def deploy_cf_relay(
     rc, out, err = _run_wrangler(["kv", "namespace", "create", kv_ns_name], cwd=relay_dir)
     kv_id = None
     if rc == 0:
-        m = re.search(r'id\s*=\s*"([0-9a-f]+)"', out)
-        if m:
-            kv_id = m.group(1)
+        kv_id = _extract_kv_id(out)
     elif "already" in err.lower() or "already" in out.lower():
         # Find the existing namespace id via `wrangler kv namespace list`.
-        rc2, list_out, _ = _run_wrangler(["kv", "namespace", "list"], cwd=relay_dir)
+        rc2, list_out, list_err = _run_wrangler(["kv", "namespace", "list"], cwd=relay_dir)
         if rc2 == 0:
-            try:
-                import json as _json
-                for ns in _json.loads(list_out):
-                    if ns.get("title", "").endswith(kv_ns_name):
-                        kv_id = ns.get("id")
-                        break
-            except Exception:
-                pass
+            kv_id = _find_kv_id_in_list(list_out, kv_ns_name)
+            if kv_id is None:
+                print(
+                    f"[warn] could not locate KV namespace {kv_ns_name!r} in "
+                    f"`wrangler kv namespace list` output",
+                    file=sys.stderr,
+                )
+        else:
+            print(f"[warn] `wrangler kv namespace list` failed: {list_err}", file=sys.stderr)
     if kv_id:
         toml_path = relay_dir / "wrangler.toml"
         current = toml_path.read_text()
