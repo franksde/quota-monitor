@@ -1,0 +1,142 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Each job below has the minimum set of permissions it needs. The default
+# token has read-only contents, so explicit grants are required for any write.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install test deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+      - name: Run tests
+        run: python -m pytest -v
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: test
+    runs-on: ubuntu-latest
+    # Trusted publishing via OIDC — no token in secrets. Requires a
+    # one-time setup on pypi.org: project → Publishing → Add a trusted
+    # publisher with owner=franksde, repo=quota-monitor, workflow=release.yml,
+    # environment=(blank or "pypi").
+    environment:
+      name: pypi
+      url: https://pypi.org/project/quota-monitor/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build sdist + wheel
+        run: |
+          python -m pip install --upgrade pip
+          pip install build
+          python -m build
+      - name: Verify version matches tag
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION=$(python -c "import tomllib; print(tomllib.loads(open('pyproject.toml','rb').read().decode())['project']['version'])")
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::tag is v${TAG_VERSION} but pyproject.toml says ${PKG_VERSION}"
+            exit 1
+          fi
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  bump-homebrew:
+    name: Bump homebrew formula
+    needs: publish-pypi
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compute tarball SHA256
+        id: sha
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          URL="https://github.com/${{ github.repository }}/archive/refs/tags/v${VERSION}.tar.gz"
+          # The GitHub-generated tarball can take a moment to materialise
+          # after a tag push. Retry a few times.
+          for i in 1 2 3 4 5; do
+            SHA=$(curl -sL "$URL" | shasum -a 256 | awk '{print $1}')
+            if [ -n "$SHA" ] && [ "$SHA" != "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" ]; then
+              break
+            fi
+            echo "tarball not ready yet (attempt $i), sleeping 10s..."
+            sleep 10
+          done
+          if [ -z "$SHA" ] || [ "$SHA" = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" ]; then
+            echo "::error::could not fetch tarball SHA after retries"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+      - name: Clone homebrew-tap
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/franksde/homebrew-tap.git" tap
+      - name: Patch formula
+        run: |
+          VERSION="${{ steps.sha.outputs.version }}"
+          URL="${{ steps.sha.outputs.url }}"
+          SHA="${{ steps.sha.outputs.sha }}"
+          FORMULA=tap/Formula/quota-monitor.rb
+          python3 - "$FORMULA" "$URL" "$SHA" "$VERSION" <<'PY'
+          import re, sys
+          path, url, sha, version = sys.argv[1:]
+          text = open(path).read()
+          text = re.sub(r'url\s+"[^"]*"',     f'url "{url}"', text, count=1)
+          text = re.sub(r'sha256\s+"[^"]*"',  f'sha256 "{sha}"', text, count=1)
+          text = re.sub(
+              r'assert_match\s+"quota-monitor\s+[0-9][0-9.]*"',
+              f'assert_match "quota-monitor {version}"',
+              text, count=1,
+          )
+          open(path, 'w').write(text)
+          PY
+          cat "$FORMULA"
+      - name: Commit + push
+        run: |
+          cd tap
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/quota-monitor.rb
+          if git diff --staged --quiet; then
+            echo "formula already up to date; nothing to commit"
+            exit 0
+          fi
+          git commit -m "quota-monitor ${{ steps.sha.outputs.version }}"
+          git push origin HEAD:main
+
+  github-release:
+    name: Create GitHub Release
+    needs: publish-pypi
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --repo "${{ github.repository }}" \
+            --title "${GITHUB_REF_NAME}" \
+            --notes-from-tag
