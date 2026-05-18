@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.2.4 — 2026-05-18
+
+- `feat(setup)`: the wizard now offers the same "send a test message?" prompt
+  for `macos_native` primary that it already offered for `telegram` and
+  `cloudflare_relay`. Lets users catch macOS notification-permission issues
+  inside the wizard instead of after install. The legacy
+  `skip_telegram_test` answers-dict key is still honoured for non-interactive
+  callers.
+- `fix(cli)`: `quota-monitor --help` / `--version` now print the actual CLI
+  command name (`quota-monitor`) and pull the version from `__version__`
+  instead of a hand-maintained literal.
+- `fix(notifiers)`: Telegram and Cloudflare-relay `User-Agent` headers now
+  reflect the real package version instead of a stale `QuotaMonitor/0.1.0`.
+- `chore(dev)`: new `scripts/sandbox.sh` creates an isolated `$HOME`-redirected
+  sandbox for testing `setup` / `uninstall` / `notify-test` flows end-to-end
+  without touching the real `~/.quota-monitor`, `~/.claude`, installed wheel,
+  or LaunchAgent. See the script header for what is and isn't isolated.
+
 ## v0.2.3 — 2026-05-18
 
 - `fix(setup)`: the wizard could silently fail to wire the

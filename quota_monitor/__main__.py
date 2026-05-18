@@ -4,8 +4,9 @@ import time
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="quota_monitor")
-    parser.add_argument("--version", action="version", version="quota_monitor 0.2.3")
+    from . import __version__
+    parser = argparse.ArgumentParser(prog="quota-monitor")
+    parser.add_argument("--version", action="version", version=f"quota-monitor {__version__}")
     sub = parser.add_subparsers(dest="cmd")
 
     sub.add_parser("setup", help="interactive setup wizard")

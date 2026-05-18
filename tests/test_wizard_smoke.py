@@ -36,6 +36,49 @@ def test_wizard_non_interactive_writes_config_and_env(tmp_path):
 
 def test_wizard_sends_requested_test_notification(tmp_path):
     answers = json.loads((FIXTURES / "wizard_answers_basic.json").read_text())
+    answers["skip_test"] = False
+    config_path = tmp_path / "config.toml"
+    env_path = tmp_path / ".env"
+    with patch("quota_monitor.cli.setup.preflight_check", return_value=([], [])), \
+         patch("quota_monitor.cli.setup.send_test", create=True, return_value=0) as send_test:
+        rc = run_wizard(
+            answers=answers,
+            config_path=config_path,
+            env_path=env_path,
+            data_dir=tmp_path,
+            non_interactive=True,
+        )
+    assert rc == 0
+    send_test.assert_called_once_with(config_path=config_path, env_path=env_path, backend="telegram")
+
+
+def test_wizard_sends_macos_native_test_when_requested(tmp_path):
+    """macos_native primary should be testable in the wizard the same way
+    telegram/CF are — otherwise users have no in-wizard way to verify the
+    channel works (a common source of "I didn't get the notification"
+    confusion, especially around macOS notification permissions)."""
+    answers = json.loads((FIXTURES / "wizard_answers_basic.json").read_text())
+    answers["primary"] = "macos_native"
+    answers["skip_test"] = False
+    config_path = tmp_path / "config.toml"
+    env_path = tmp_path / ".env"
+    with patch("quota_monitor.cli.setup.preflight_check", return_value=([], [])), \
+         patch("quota_monitor.cli.setup.send_test", create=True, return_value=0) as send_test:
+        rc = run_wizard(
+            answers=answers,
+            config_path=config_path,
+            env_path=env_path,
+            data_dir=tmp_path,
+            non_interactive=True,
+        )
+    assert rc == 0
+    send_test.assert_called_once_with(config_path=config_path, env_path=env_path, backend="macos_native")
+
+
+def test_wizard_honours_legacy_skip_telegram_test_key(tmp_path):
+    """Older non-interactive callers used `skip_telegram_test` — keep them
+    working until they migrate."""
+    answers = json.loads((FIXTURES / "wizard_answers_basic.json").read_text())
     answers["skip_telegram_test"] = False
     config_path = tmp_path / "config.toml"
     env_path = tmp_path / ".env"

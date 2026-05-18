@@ -2,6 +2,7 @@ import json
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from .. import __version__
 from . import Alert, NotifierError
 
 
@@ -26,7 +27,7 @@ class CloudflareRelayNotifier:
         payload = json.dumps(body).encode()
         req = Request(self.webhook_url, data=payload, headers={
             "Content-Type": "application/json",
-            "User-Agent": "QuotaMonitor/0.1.0",
+            "User-Agent": f"QuotaMonitor/{__version__}",
         })
         try:
             with urlopen(req, timeout=10) as resp:

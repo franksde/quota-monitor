@@ -16,6 +16,7 @@ MESSAGES = {
     "wizard.step4.token": "Bot token",
     "wizard.step4.chat_id": "Chat ID",
     "wizard.step4.test": "发送测试消息?",
+    "wizard.step4.macos_title": "\n=== (4/8) 测试本地通知 ===",
     "wizard.step5.title": "\n=== (5/8) 部署 Cloudflare relay ===",
     "wizard.step5.preflight_fail": "[error] CF 前置检查失败:",
     "wizard.step5.fix_rerun": "请修复后重新运行 setup。",

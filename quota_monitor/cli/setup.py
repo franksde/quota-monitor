@@ -130,8 +130,8 @@ def _collect_interactive_answers(*, existing_secrets: Optional[dict[str, str]] =
     )
     answers["fallback"] = ["macos_native", ""][fallback_idx]
 
-    print(t("wizard.step4.title"))
-    if answers["primary"] == "telegram" or answers["primary"] == "cloudflare_relay":
+    if answers["primary"] in ("telegram", "cloudflare_relay"):
+        print(t("wizard.step4.title"))
         existing_token = existing_secrets.get("TELEGRAM_BOT_TOKEN", "")
         existing_chat = existing_secrets.get("TELEGRAM_CHAT_ID", "")
         if existing_token and existing_chat:
@@ -144,7 +144,15 @@ def _collect_interactive_answers(*, existing_secrets: Optional[dict[str, str]] =
         else:
             answers["telegram_bot_token"] = ask_string(t("wizard.step4.token"), secret=True)
             answers["telegram_chat_id"] = ask_string(t("wizard.step4.chat_id"))
-        answers["skip_telegram_test"] = not ask_yes_no(t("wizard.step4.test"), default=True)
+        answers["skip_test"] = not ask_yes_no(t("wizard.step4.test"), default=True)
+    elif answers["primary"] == "macos_native":
+        # No credentials to collect, but still offer the same test-send prompt
+        # so the user can validate macOS notification permissions inside the
+        # wizard instead of finding out the channel is broken after install.
+        print(t("wizard.step4.macos_title"))
+        answers["telegram_bot_token"] = ""
+        answers["telegram_chat_id"] = ""
+        answers["skip_test"] = not ask_yes_no(t("wizard.step4.test"), default=True)
     else:
         answers["telegram_bot_token"] = ""
         answers["telegram_chat_id"] = ""
@@ -262,7 +270,10 @@ def run_wizard(
     env_path.chmod(0o600)
     print(f"\nWrote {config_path}\nWrote {env_path}")
 
-    if not answers.get("skip_telegram_test", True) and answers.get("primary") in ("telegram", "cloudflare_relay"):
+    # Backward-compat: older non-interactive answers dicts may still use the
+    # legacy `skip_telegram_test` key. Honour either.
+    skip_test = answers.get("skip_test", answers.get("skip_telegram_test", True))
+    if not skip_test and answers.get("primary") in ("telegram", "cloudflare_relay", "macos_native"):
         rc = send_test(config_path=config_path, env_path=env_path, backend=answers["primary"])
         if rc != 0:
             return rc

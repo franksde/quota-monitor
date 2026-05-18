@@ -9,4 +9,4 @@ def test_module_runnable():
         capture_output=True, text=True
     )
     assert result.returncode == 0
-    assert "quota_monitor" in result.stdout.lower()
+    assert "quota-monitor" in result.stdout.lower()
