@@ -135,8 +135,9 @@ jobs:
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
+        # --notes-from-tag does not accept --repo (gh CLI quirk); omit it
+        # and rely on the checkout above to scope gh to the current repo.
         run: |
           gh release create "${GITHUB_REF_NAME}" \
-            --repo "${{ github.repository }}" \
             --title "${GITHUB_REF_NAME}" \
             --notes-from-tag
