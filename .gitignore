@@ -21,3 +21,6 @@ cloudflare-relay/wrangler.toml
 
 # Superpowers temporary workspace
 docs/superpowers/
+
+# Local-only maintainer notes (not for the public repo)
+docs/RELEASING.md
