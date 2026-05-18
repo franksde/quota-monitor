@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.2.5 — 2026-05-18
+
+- `docs`: the `brew install` command shown in `README.md` / `README.zh-CN.md`
+  was pointing at a tap path that does not exist (`franksde/quota-monitor`);
+  the real tap is `franksde/tap`. Both READMEs were corrected on `main`
+  after v0.2.4 shipped, so this patch republishes the sdist with the
+  fixed command so `pip` / PyPI viewers see the right install path.
+- `ci`: first release driven end-to-end by the new tag-triggered GitHub
+  Actions workflow (`.github/workflows/release.yml`): test gate →
+  PyPI publish via OIDC trusted publishing → Homebrew formula bump in
+  `franksde/homebrew-tap` → GitHub Release page.
+
 ## v0.2.4 — 2026-05-18
 
 - `feat(setup)`: the wizard now offers the same "send a test message?" prompt
