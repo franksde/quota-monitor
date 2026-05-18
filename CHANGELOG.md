@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.2.6 — 2026-05-18
+
+- `fix(cli/run)`: Codex Cloudflare schedule IDs now use the same logical
+  5-hour window bucket as Claude instead of the exact reset epoch. This
+  prevents second-level reset jitter such as `04:36:37` → `04:36:38` from
+  being treated as a separate logical notification.
+- `fix(cloudflare-relay)`: the Worker now writes a short-lived
+  `delivered:{schedule_id}:{reset_epoch}` KV marker after a successful
+  Telegram delivery and skips later queue messages with the same key. The
+  previous KV tombstone only handled superseded reset predictions; it did
+  not suppress duplicate queued copies with the same reset time.
+- `test`: added regressions for Codex schedule-id jitter and duplicate
+  Cloudflare Queue delivery.
+
 ## v0.2.5 — 2026-05-18
 
 - `docs`: the `brew install` command shown in `README.md` / `README.zh-CN.md`

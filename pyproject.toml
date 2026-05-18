@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "quota-monitor"
-version = "0.2.5"
+version = "0.2.6"
 description = "Monitor Claude / Codex 5-hour quota windows and notify on reset."
 readme = "README.md"
 requires-python = ">=3.11"

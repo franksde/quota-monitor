@@ -584,6 +584,38 @@ def test_cf_schedule_id_is_stable_across_boundary_jitter():
     assert schedule_ids[0] == schedule_ids[1]
 
 
+def test_cf_codex_schedule_id_is_stable_across_second_jitter():
+    cfg = MagicMock()
+    cfg.probes.claude.precise_threshold_percent = 30
+    cfg.probes.claude.threshold_turns = 5
+    cfg.probes.codex.threshold_percent = 30
+    now = WINDOW_SECONDS
+    reset_before = 3 * WINDOW_SECONDS - 1
+    reset_after = 3 * WINDOW_SECONDS + 1
+    schedule_ids = []
+
+    for reset_at in (reset_before, reset_after):
+        primary = MagicMock(name="cf")
+        codex_result = ProbeResult(
+            source="codex",
+            timestamps=(),
+            extra={"used_percent": 60, "reset_at": reset_at},
+        )
+        _maybe_schedule_cf_recovered_alert(
+            cfg=cfg,
+            state=default_state(),
+            precise=None,
+            claude_result=None,
+            codex_result=codex_result,
+            now=now,
+            primary=primary,
+            dry_run=False,
+        )
+        schedule_ids.append(primary.send.call_args.args[0].schedule_id)
+
+    assert schedule_ids[0] == schedule_ids[1]
+
+
 def test_cf_mode_dedupes_same_reset(tmp_path):
     """Second LaunchAgent tick with same future reset → don't re-schedule."""
     cfg_path = _write_cf_config(tmp_path)

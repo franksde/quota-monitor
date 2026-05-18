@@ -9,7 +9,7 @@ from ..config.loader import ConfigError, load_config
 from ..core.calibration import load_calibration, record_sample, save_calibration
 from ..core.dispatch import DispatchOutcome, dispatch_alert
 from ..core.state import ClaudeState, CodexState, load_state, save_state
-from ..core.window import AlertDecision, LatestWindow, decide_alerts, replay_windows, window_from_known_reset
+from ..core.window import AlertDecision, LatestWindow, WINDOW_SECONDS, decide_alerts, replay_windows, window_from_known_reset
 from ..i18n import set_locale, t
 from ..notifiers import Alert, Notifier
 from ..notifiers.cloudflare_relay import CloudflareRelayNotifier
@@ -90,6 +90,10 @@ def _best_known_future_reset(precise, claude_state, claude_result, now: float) -
     return None
 
 
+def _logical_schedule_id(source: str, reset_at: float) -> str:
+    return f"{source}-{int((int(reset_at) + WINDOW_SECONDS // 2) // WINDOW_SECONDS)}"
+
+
 def _maybe_schedule_cf_recovered_alert(
     *, cfg, state, precise, claude_result, codex_result, now: float, primary,
     dry_run: bool,
@@ -107,7 +111,6 @@ def _maybe_schedule_cf_recovered_alert(
     Returns possibly-updated state.
     """
     from dataclasses import replace
-    from ..core.window import WINDOW_SECONDS
     from datetime import datetime
 
     new_state = state
@@ -128,7 +131,7 @@ def _maybe_schedule_cf_recovered_alert(
                 ))
             else:
                 reset_human = datetime.fromtimestamp(best_reset).strftime("%Y-%m-%d %H:%M:%S")
-                schedule_id = f"claude-{int((best_reset + WINDOW_SECONDS // 2) // WINDOW_SECONDS)}"
+                schedule_id = _logical_schedule_id("claude", best_reset)
                 alert = Alert(
                     title=t("alert.title.recovered", source="Claude"),
                     body=t("alert.body.recovered", source="Claude", reset_at_human=reset_human),
@@ -160,8 +163,7 @@ def _maybe_schedule_cf_recovered_alert(
                     ))
                 else:
                     reset_human = datetime.fromtimestamp(reset_at).strftime("%Y-%m-%d %H:%M:%S")
-                    # For Codex, the reset is fixed per API response. We can use it directly as the bucket.
-                    schedule_id = f"codex-{int(reset_at)}"
+                    schedule_id = _logical_schedule_id("codex", reset_at)
                     alert = Alert(
                         title=t("alert.title.recovered", source="Codex"),
                         body=t("alert.body.recovered", source="Codex", reset_at_human=reset_human),

@@ -114,6 +114,7 @@ export default {
         // recent schedule's notification.
         const scheduleId = msg.body.schedule_id;
         const ourResetEpoch = msg.body.reset_time_epoch;
+        let deliveryKey = null;
         if (scheduleId && ourResetEpoch && env.SCHEDULE_TOMBSTONE) {
           const latest = await env.SCHEDULE_TOMBSTONE.get(`latest:${scheduleId}`);
           if (latest && Number(latest) !== ourResetEpoch) {
@@ -121,8 +122,26 @@ export default {
             msg.ack();
             continue;
           }
+          deliveryKey = `delivered:${scheduleId}:${ourResetEpoch}`;
+          const delivered = await env.SCHEDULE_TOMBSTONE.get(deliveryKey);
+          if (delivered) {
+            console.log(`Duplicate delivery skipped: ${scheduleId} reset=${ourResetEpoch}`);
+            msg.ack();
+            continue;
+          }
         }
         await sendTelegram(env, msg.body.message);
+        if (deliveryKey) {
+          try {
+            await env.SCHEDULE_TOMBSTONE.put(
+              deliveryKey,
+              "1",
+              { expirationTtl: 6 * 3600 },
+            );
+          } catch (e) {
+            console.log("KV delivered marker write failed (continuing):", e.message);
+          }
+        }
         msg.ack();
       } catch (e) {
         console.log("Queue delivery failed, will retry:", e.message);
