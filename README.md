@@ -118,7 +118,7 @@ The statusLine wrapper is a **fast path**, not an authoritative source. It passi
 Install via Homebrew:
 
 ```bash
-brew install franksde/quota-monitor/quota-monitor
+brew install franksde/tap/quota-monitor
 ```
 
 Then run the setup wizard to configure and install the LaunchAgent:

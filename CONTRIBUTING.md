@@ -26,3 +26,7 @@ Run before pushing:
 ```bash
 python3 -m pytest -v
 ```
+
+## Releasing
+
+See [docs/RELEASING.md](docs/RELEASING.md) for the full GitHub + PyPI + Homebrew release pipeline.

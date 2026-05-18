@@ -114,7 +114,7 @@ statusLine wrapper 是一条**快速路径**，而非权威数据源。它被动
 通过 Homebrew 安装：
 
 ```bash
-brew install franksde/quota-monitor/quota-monitor
+brew install franksde/tap/quota-monitor
 ```
 
 然后运行向导配置并自动注册 LaunchAgent：
