@@ -23,6 +23,13 @@ class ClaudeState:
     # delayed "recovered" notification for. Prevents every LaunchAgent tick
     # from re-scheduling the same future alert.
     scheduled_alert_reset_at: int = 0
+    # Post-reset activation: which past-reset epoch the keepalive subsystem
+    # is currently trying to anchor (by injecting one minimal Claude call so
+    # the local JSONL gets a new-window timestamp). Pair with attempt_count
+    # for a 3-strike retry budget. Cleared once activity appears in the
+    # window or when we give up.
+    keepalive_attempted_for_reset: int = 0
+    keepalive_attempt_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -37,7 +44,6 @@ class CodexState:
 
 @dataclass(frozen=True)
 class KeepaliveState:
-    last_seamless_scheduled_for: int = 0
     phrase_pool_used_indices: tuple[int, ...] = ()
     phrase_pool_size_at_init: int = 0
 
@@ -72,6 +78,8 @@ def load_state(path: Path) -> State:
                             "cooldown_until",
                             "last_known_good_reset_at",
                             "scheduled_alert_reset_at",
+                            "keepalive_attempted_for_reset",
+                            "keepalive_attempt_count",
                         }}
         codex_block = {k: v for k, v in (raw.get("codex") or {}).items()
                        if k in {
@@ -87,7 +95,10 @@ def load_state(path: Path) -> State:
             claude=ClaudeState(**claude_block),
             codex=CodexState(**codex_block),
             keepalive=KeepaliveState(
-                last_seamless_scheduled_for=(raw.get("keepalive") or {}).get("last_seamless_scheduled_for", 0),
+                # last_seamless_scheduled_for from older state files is
+                # silently dropped — the seamless scheduling subsystem was
+                # removed in 0.3.0, replaced by post-reset activation
+                # (tracked on ClaudeState.keepalive_*).
                 phrase_pool_used_indices=tuple((raw.get("keepalive") or {}).get("phrase_pool_used_indices", [])),
                 phrase_pool_size_at_init=(raw.get("keepalive") or {}).get("phrase_pool_size_at_init", 0),
             ),

@@ -134,7 +134,8 @@ Codex 的请求频率会根据距阈值的距离自适应：用量离阈值较�
 - Telegram direct 通知。
 - macOS native notification fallback。
 - Cloudflare relay，用于笔记本睡眠或关机时的延迟通知。
-- Claude keepalive 策略，默认关闭。
+- Claude post-reset keepalive（当 5 小时窗口刚 reset、本地无活动时，
+  自动发一条最小 `claude -p` 调用为新窗口"打个锚点"），默认关闭。
 
 ## 30 秒理解工作流程
 
@@ -197,7 +198,14 @@ Relay 提供：
 ### Keepalive（自动延续 Claude 5 小时窗口）
 - **默认关闭。**
 - **ToS 风险**：Anthropic 的 AUP 不鼓励自动化使用。开启前请自己承担风险；如果规模化使用，可能引起注意，甚至影响账号。
-- **睡眠限制**：macOS 睡眠时（合盖 / idle sleep），keepalive **不会工作**。`polling` 和 `seamless` 两种策略在睡眠期间都会失效。自然 5 小时 reset 仍会发生，keepalive 救不回来。
+- **它做什么（0.3.0+）**：当 Claude 5 小时窗口刚刚 reset、本地 Claude
+  Code JSONL 在新窗口内还没有任何活动时，下一次 LaunchAgent tick 会
+  通过一个 detached tmux session 发起一次最小化的 `claude -p` 调用。
+  这样新窗口就有了本地锚点，恢复通知的预测时间不会再依赖陈旧的
+  Anthropic 侧 anchor 了。最多重试 `keepalive.max_activation_attempts`
+  次（默认 3 次），失败后停手，避免坏环境下无限循环。
+- **睡眠限制**：macOS 睡眠时（合盖 / idle sleep），keepalive **不会工作**。
+  自然 5 小时 reset 仍会发生，keepalive 救不回来。
 - **可选做法**：用台式机 / 常开机器、运行 `caffeinate -i`，或者接受自然 reset。
 
 ### Keepalive 内容随机化：能做什么，不能做什么

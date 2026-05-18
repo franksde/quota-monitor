@@ -11,11 +11,52 @@ def test_default_state_has_schema_version():
     assert s.schema_version == 1
     assert s.claude.alerted_for_reset == 0
     assert s.claude.last_known_good_reset_at == 0
+    assert s.claude.keepalive_attempted_for_reset == 0
+    assert s.claude.keepalive_attempt_count == 0
     assert s.codex.alerted_for_reset == 0
     assert s.codex.last_fetch_at == 0
     assert s.codex.last_used_percent == 0
     assert s.codex.last_reset_at == 0
     assert s.keepalive.phrase_pool_used_indices == ()
+
+
+def test_load_old_claude_state_defaults_keepalive_fields(tmp_path):
+    """Old state.json without keepalive_attempted_for_reset / _attempt_count
+    must load cleanly with zeros, equivalent to first-run."""
+    path = tmp_path / "state.json"
+    path.write_text(json.dumps({
+        "schema_version": 1,
+        "claude": {
+            "alerted_for_reset": 0,
+            "cooldown_until": 0,
+            "last_known_good_reset_at": 12345.0,
+            "scheduled_alert_reset_at": 99999,
+        },
+        "codex": {},
+        "keepalive": {},
+    }))
+
+    loaded = load_state(path)
+
+    assert loaded.claude.last_known_good_reset_at == 12345.0
+    assert loaded.claude.scheduled_alert_reset_at == 99999
+    assert loaded.claude.keepalive_attempted_for_reset == 0
+    assert loaded.claude.keepalive_attempt_count == 0
+
+
+def test_save_then_load_roundtrips_keepalive_fields(tmp_path):
+    path = tmp_path / "state.json"
+    s = replace(
+        default_state(),
+        claude=ClaudeState(
+            keepalive_attempted_for_reset=1_000_000,
+            keepalive_attempt_count=2,
+        ),
+    )
+    save_state(path, s)
+    loaded = load_state(path)
+    assert loaded.claude.keepalive_attempted_for_reset == 1_000_000
+    assert loaded.claude.keepalive_attempt_count == 2
 
 
 def test_save_then_load_roundtrip(tmp_path):

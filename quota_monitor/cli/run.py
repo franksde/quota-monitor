@@ -12,6 +12,8 @@ from ..core.state import ClaudeState, CodexState, load_state, save_state
 from ..core.window import AlertDecision, LatestWindow, WINDOW_SECONDS, decide_alerts, replay_windows, window_from_known_reset
 from ..i18n import set_locale, t
 from ..notifiers import Alert, Notifier
+from ..keepalive.activation import fire_activation
+from ..keepalive.phrases import PhraseState
 from ..notifiers.cloudflare_relay import CloudflareRelayNotifier
 from ..notifiers.macos_native import MacOSNativeNotifier
 from ..notifiers.telegram import TelegramNotifier
@@ -58,7 +60,22 @@ def _alert_for(decision: AlertDecision, *, estimated: bool = False) -> Alert:
     )
 
 
-def _best_known_future_reset(precise, claude_state, claude_result, now: float) -> Optional[float]:
+def _has_threshold_activity_for_reset(claude_result, *, reset_at: float, threshold_turns: int) -> bool:
+    if claude_result is None or not claude_result.timestamps:
+        return False
+    start = reset_at - WINDOW_SECONDS
+    count = sum(1 for ts in claude_result.timestamps if start <= ts < reset_at)
+    return count >= threshold_turns
+
+
+def _best_known_future_reset(
+    precise,
+    claude_state,
+    claude_result,
+    now: float,
+    *,
+    threshold_turns: int,
+) -> Optional[float]:
     """Pick the moment to schedule a 'recovered' notification for. Always
     returns a value strictly in the future, or None if we have nothing.
 
@@ -77,12 +94,24 @@ def _best_known_future_reset(precise, claude_state, claude_result, now: float) -
         candidate = precise.five_hour_resets_at + WINDOW_SECONDS
         while candidate <= now:
             candidate += WINDOW_SECONDS
-        return candidate
+        if _has_threshold_activity_for_reset(
+            claude_result,
+            reset_at=candidate,
+            threshold_turns=threshold_turns,
+        ):
+            return candidate
+        return None
     if claude_state.last_known_good_reset_at:
         candidate = claude_state.last_known_good_reset_at + WINDOW_SECONDS
         while candidate <= now:
             candidate += WINDOW_SECONDS
-        return candidate
+        if _has_threshold_activity_for_reset(
+            claude_result,
+            reset_at=candidate,
+            threshold_turns=threshold_turns,
+        ):
+            return candidate
+        return None
     if claude_result and claude_result.timestamps:
         w = replay_windows(claude_result.timestamps)
         if w and w.reset > now:
@@ -92,6 +121,122 @@ def _best_known_future_reset(precise, claude_state, claude_result, now: float) -
 
 def _logical_schedule_id(source: str, reset_at: float) -> str:
     return f"{source}-{int((int(reset_at) + WINDOW_SECONDS // 2) // WINDOW_SECONDS)}"
+
+
+def _maybe_post_reset_activate(
+    *,
+    cfg,
+    state,
+    precise,
+    claude_result,
+    now: float,
+    dry_run: bool,
+):
+    """Post-reset window anchoring. When a Claude 5h window has rolled over
+    and no local JSONL activity exists in the new window yet, fire one
+    minimal Claude call so the next tick has a real-activity anchor —
+    instead of relying on "anchor + N*5h" mechanical math which causes
+    phantom-recovery notifications when the anchor goes stale.
+
+    Strikes-out after cfg.keepalive.max_activation_attempts so a broken
+    setup (tmux missing, network down, claude auth expired) doesn't
+    re-fire every tick forever. Once activity appears in the window —
+    either from a successful fire, or because the user came back and used
+    Claude — strike state clears.
+    """
+    if not cfg.keepalive.enabled:
+        return state
+
+    # Step 1: resolve anchor. precise (HUD-fresh) wins over state-cached.
+    if precise is not None:
+        anchor = precise.five_hour_resets_at
+    elif state.claude.last_known_good_reset_at > 0:
+        anchor = state.claude.last_known_good_reset_at
+    else:
+        return state
+
+    # Step 2: anchor must be in the past for "post-reset" to be meaningful.
+    # Anchor in future = current window still active = nothing to anchor.
+    if anchor > now:
+        return state
+
+    # Step 3: walk forward to the most recent reset boundary.
+    n_periods = int((now - anchor) // WINDOW_SECONDS)
+    most_recent_reset = anchor + n_periods * WINDOW_SECONDS
+    key = int(most_recent_reset)
+
+    # Step 4: if any timestamp lies inside the new window, we're done —
+    # the next downstream tick will use replay_windows on real activity.
+    has_post_reset_activity = (
+        claude_result is not None
+        and any(ts >= most_recent_reset for ts in claude_result.timestamps)
+    )
+    if has_post_reset_activity:
+        return _clear_keepalive_state(state)
+
+    # Step 5: strike budget. Once exhausted for this reset, don't fire
+    # again until either activity appears (Step 4) or we cross into the
+    # next period (which resets the count via the key change in Step 7).
+    max_attempts = getattr(cfg.keepalive, "max_activation_attempts", 3)
+    if (
+        state.claude.keepalive_attempted_for_reset == key
+        and state.claude.keepalive_attempt_count >= max_attempts
+    ):
+        return state
+
+    # Step 6: fire (or dry-run pretend-fire).
+    if dry_run:
+        print(f"[dry-run] would activate keepalive for reset={key}")
+        return _bump_keepalive_state(state, key)
+
+    claude_cli = shutil.which("claude") or str(Path.home() / ".local" / "bin" / "claude")
+    phrase_state = PhraseState(
+        used_indices=state.keepalive.phrase_pool_used_indices,
+        size_at_init=state.keepalive.phrase_pool_size_at_init,
+    )
+    ok, new_phrase_state = fire_activation(
+        claude_cli=claude_cli,
+        shell="/bin/zsh",
+        model=cfg.keepalive.model,
+        phrase_pool=cfg.keepalive.phrase_pool,
+        phrase_state=phrase_state,
+        delay_seconds=0,
+    )
+
+    new_state = _bump_keepalive_state(state, key)
+    if ok:
+        new_state = replace(new_state, keepalive=replace(
+            new_state.keepalive,
+            phrase_pool_used_indices=new_phrase_state.used_indices,
+            phrase_pool_size_at_init=new_phrase_state.size_at_init,
+        ))
+    return new_state
+
+
+def _clear_keepalive_state(state):
+    if (
+        state.claude.keepalive_attempted_for_reset == 0
+        and state.claude.keepalive_attempt_count == 0
+    ):
+        return state
+    return replace(state, claude=replace(
+        state.claude,
+        keepalive_attempted_for_reset=0,
+        keepalive_attempt_count=0,
+    ))
+
+
+def _bump_keepalive_state(state, key: int):
+    """Step 7: same-reset → count++, new reset → count=1."""
+    if state.claude.keepalive_attempted_for_reset == key:
+        new_count = state.claude.keepalive_attempt_count + 1
+    else:
+        new_count = 1
+    return replace(state, claude=replace(
+        state.claude,
+        keepalive_attempted_for_reset=key,
+        keepalive_attempt_count=new_count,
+    ))
 
 
 def _maybe_schedule_cf_recovered_alert(
@@ -121,7 +266,13 @@ def _maybe_schedule_cf_recovered_alert(
         or (claude_result is not None and len(claude_result.timestamps) >= cfg.probes.claude.threshold_turns)
     )
     if claude_threshold_hit:
-        best_reset = _best_known_future_reset(precise, new_state.claude, claude_result, now)
+        best_reset = _best_known_future_reset(
+            precise,
+            new_state.claude,
+            claude_result,
+            now,
+            threshold_turns=cfg.probes.claude.threshold_turns,
+        )
         if best_reset is not None and new_state.claude.scheduled_alert_reset_at != int(best_reset):
             if dry_run:
                 print(f"[dry-run] would CF-schedule: source=claude reset_at={int(best_reset)}")
@@ -312,6 +463,17 @@ def run_once(
                 )
         claude_source_type = "estimated" if claude_window is not None else None
 
+    # Post-reset window anchoring. Runs in every mode (CF or polling) when
+    # keepalive is enabled. Must run BEFORE the CF schedule block: even
+    # though the fire-and-forget activation doesn't materialise in
+    # claude_result.timestamps within this tick, the *next* tick will see
+    # the new JSONL entry and the CF schedule will derive its target from
+    # that real activity rather than from "stale anchor + 5h".
+    new_state = _maybe_post_reset_activate(
+        cfg=cfg, state=new_state, precise=precise,
+        claude_result=claude_result, now=now, dry_run=dry_run,
+    )
+
     is_cf_mode = cfg.notifiers.primary == "cloudflare_relay"
 
     # CF Queue mode: schedule the "recovered" alert at threshold-detection
@@ -391,30 +553,6 @@ def run_once(
                         alerted_for_reset=d.reset_at,
                         cooldown_until=d.reset_at,
                     ))
-
-    if cfg.keepalive.enabled:
-        timestamps = claude_result.timestamps if claude_result is not None else ()
-        claude_cli = shutil.which("claude") or str(Path.home() / ".local" / "bin" / "claude")
-        shell = "/bin/zsh"
-        idle_seconds = cfg.probes.claude.window_hours * 3600
-        if cfg.keepalive.strategy == "seamless":
-            from ..keepalive.seamless import seamless_tick
-            # Pass the precise/HUD-sourced anchor so seamless picks the right
-            # moment to fire — otherwise it falls back to replay_windows
-            # estimate which can drift hours from reality.
-            known_reset = new_state.claude.last_known_good_reset_at or None
-            _, new_state = seamless_tick(
-                state=new_state,
-                now=now,
-                timestamps=timestamps,
-                claude_cli=claude_cli,
-                shell=shell,
-                model=cfg.keepalive.model,
-                phrase_pool=cfg.keepalive.phrase_pool,
-                trigger_minutes=cfg.keepalive.seamless_trigger_minutes,
-                buffer_seconds=cfg.keepalive.seamless_buffer_seconds,
-                known_reset_at=known_reset,
-            )
 
     save_state(state_path, new_state)
     return 0

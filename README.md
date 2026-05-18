@@ -138,7 +138,9 @@ Optional features:
 - Telegram direct notifications.
 - macOS native notification fallback.
 - Cloudflare relay for delayed delivery when your laptop may be asleep.
-- Claude keepalive strategies, disabled by default.
+- Claude post-reset keepalive (auto-anchors the new 5h window with a
+  minimal `claude -p` call when local activity is absent), disabled by
+  default.
 
 ## How it works (in 30 seconds)
 
@@ -202,11 +204,17 @@ The relay exposes:
 - **Default: off.**
 - **ToS**: Anthropic's AUP discourages automated usage. Enable at 
   your own risk; at scale this may invite attention or risk your account.
-- **Sleep limitation**: keepalive **stops working** while macOS sleeps 
-  (lid closed / idle sleep). Both `polling` and `seamless` strategies 
-  fail under sleep. The natural 5h reset will still happen — keepalive 
-  cannot save it.
-- **Workarounds**: desktop / always-on machine, `caffeinate -i`, or 
+- **What it does (0.3.0+)**: when a Claude 5h window resets and your
+  local Claude Code JSONL has no activity in the new window, the next
+  LaunchAgent tick fires one minimal `claude -p` call via a detached
+  tmux session. This anchors the new window in local data so the
+  recovery-alert prediction stops drifting on stale Anthropic-side
+  anchors. Strikes out after `keepalive.max_activation_attempts`
+  (default 3) so a broken setup doesn't spin forever.
+- **Sleep limitation**: keepalive **stops working** while macOS sleeps
+  (lid closed / idle sleep). The natural 5h reset will still happen —
+  keepalive cannot save it.
+- **Workarounds**: desktop / always-on machine, `caffeinate -i`, or
   accept the natural reset.
 
 ### Keepalive content randomization — what it does and doesn't

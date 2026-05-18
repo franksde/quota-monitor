@@ -5,8 +5,9 @@ import sys
 
 
 def _find_tmux() -> bool:
-    """Match the resolution logic seamless.py uses at runtime — shutil.which
-    plus the brew/macports fallback paths that launchd's default PATH excludes."""
+    """Match the resolution logic keepalive/activation.py uses at runtime —
+    shutil.which plus the brew/macports fallback paths that launchd's
+    default PATH excludes."""
     if shutil.which("tmux"):
         return True
     import os
@@ -21,9 +22,8 @@ def preflight_check(*, need_wrangler: bool = False) -> tuple[list[str], list[str
 
     keepalive optional deps (claude CLI, tmux) are warnings even when present:
     the wizard runs preflight before the user has chosen whether to enable
-    keepalive, and seamless_tick has its own runtime guard (FAILED_NO_TMUX)
-    that surfaces a clear install hint if the user does enable it without
-    these tools.
+    keepalive, and fire_activation has its own runtime guard that surfaces
+    a clear install hint if the user does enable it without these tools.
     """
     errors: list[str] = []
     warnings: list[str] = []

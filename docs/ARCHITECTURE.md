@@ -9,7 +9,7 @@
 | `core/state.py` | Atomic JSON state IO with backward-compatible field load | `load_state()`, `save_state()`, `ClaudeState`, `CodexState` | stdlib |
 | `core/calibration.py` | Sample-based correction of estimated reset using precise reset | `record_sample()`, `compute_correction()` | stdlib |
 | `notifiers/` | `Notifier` Protocol and implementations (telegram, macos_native, cloudflare_relay) | `Notifier.send(Alert)`, `Alert(schedule_id=...)` | stdlib HTTP/subprocess |
-| `keepalive/` | Optional `seamless` keepalive (detached tmux session sleeps until window end, fires minimal `claude -p` to renew) | `seamless_tick()` | `core.window`, `platform.schedule` |
+| `keepalive/` | Optional post-reset window anchoring. When a 5h reset has just passed and the new window has no local JSONL activity, fires one minimal `claude -p` via a detached tmux session so the new window becomes visible to downstream window math. | `fire_activation()` | `core.state`, `platform.paths` |
 | `platform/` | macOS paths and LaunchAgent plist generation | `paths.*`, `schedule.*` | stdlib |
 | `config/` | TOML + `.env` load and validation | `Config`, `load_config()` | `tomllib`, stdlib |
 | `statusline/` | Wraps Claude Code statusLine to extract `rate_limits` from stdin and self-heal when external tools (cc-switch) overwrite settings.json | `run_wrapper()`, `ensure_wrapper_installed()` | stdlib |
@@ -38,7 +38,7 @@ quota-monitor/
 │   ├── config/                # TOML + .env
 │   ├── core/                  # window, state, calibration, dispatch
 │   ├── i18n/                  # EN/ZH message tables
-│   ├── keepalive/             # seamless strategy
+│   ├── keepalive/             # post-reset window anchoring (fire_activation)
 │   ├── notifiers/             # telegram, macos_native, cloudflare_relay
 │   ├── platform/              # paths, LaunchAgent plist
 │   ├── probes/                # claude, codex, precise, hud_adapters, _throttled_fetch
@@ -77,9 +77,13 @@ launchd
          0 <= now - reset <= RESET_GRACE_SECONDS (30 min) AND
          count >= threshold AND not in cooldown AND not already alerted.
          Cooldown anchored to reset_at + grace (NOT wall-clock 4h).
+  -> _maybe_post_reset_activate (when keepalive enabled): if a reset
+       has just passed and no local activity exists in the new window,
+       fire fire_activation() — minimal `claude -p` inside a detached
+       tmux session — so the next tick has a real activity anchor.
+       Strikes out after max_activation_attempts.
   -> dispatch_alert(primary, fallback) only when state changes
   -> save_state() only after notifier success
-  -> optional keepalive seamless_tick (tmux + minimal --bare claude -p)
 ```
 
 ## Full Replay State Flow
@@ -91,7 +95,7 @@ QuotaMonitor makes that failure mode structurally impossible:
 - `replay_windows(timestamps)` takes no state.
 - `decide_alerts` reads state only for dedupe (`alerted_for_reset`, `cooldown_until`, `scheduled_alert_reset_at`).
 - Status output labels window values as derived live.
-- Keepalive seamless strategy computes active windows from timestamps on every tick.
+- Keepalive post-reset activation derives `most_recent_reset` from the live anchor + N*5h on every tick — no stale schedule lingers in state beyond `keepalive_attempted_for_reset` / `keepalive_attempt_count` (cleared as soon as activity appears in the new window).
 - `last_known_good_reset_at` (populated only from precise/HUD sources, never from replay) acts as a stable anchor for replay so estimated boundaries don't drift far from official ones.
 
 ## Precise Data: Priority Chain & Freshness

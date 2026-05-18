@@ -2,7 +2,7 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 import json
 from quota_monitor.cli.run import _maybe_schedule_cf_recovered_alert, run_once
-from quota_monitor.core.state import default_state
+from quota_monitor.core.state import ClaudeState, State, default_state
 from quota_monitor.core.window import WINDOW_SECONDS, RESET_CORRECTION_SECONDS
 from quota_monitor.probes import ProbeResult
 from quota_monitor.probes._throttled_fetch import FetchHint
@@ -297,49 +297,6 @@ def test_run_once_dry_run_does_not_send_or_save(tmp_path):
     assert rc == 0
     tg_instance.send.assert_not_called()
     assert not state_path.exists()
-
-
-def test_run_once_runs_seamless_keepalive_when_enabled(tmp_path):
-    cfg_path = _write_keepalive_config(tmp_path)
-    env_path = _write_env(tmp_path)
-    state_path = tmp_path / "state.json"
-    now = 20_000.0
-    fake = MagicMock(source="claude", timestamps=(now - 6 * 3600,), extra={})
-    with patch("quota_monitor.cli.run.scan_claude", return_value=fake), \
-         patch("quota_monitor.keepalive.seamless.seamless_tick", return_value=(MagicMock(), default_state())):
-        rc = run_once(config_path=cfg_path, env_path=env_path, state_path=state_path, now=now, dry_run=False)
-    assert rc == 0
-
-
-def test_run_once_passes_precise_reset_to_seamless_keepalive(tmp_path):
-    cfg_path = _write_keepalive_config(tmp_path)
-    env_path = _write_env(tmp_path)
-    state_path = tmp_path / "state.json"
-    now = 20_000.0
-    precise_reset = now + 800
-    precise = MagicMock(
-        five_hour_pct=20.0,
-        five_hour_resets_at=precise_reset,
-        seven_day_pct=30.0,
-        seven_day_resets_at=now + 86_400,
-        captured_at=now - 60,
-    )
-    fake = MagicMock(source="claude", timestamps=(now - 6 * 3600,), extra={})
-
-    with patch("quota_monitor.cli.run.ensure_wrapper_installed", return_value=False), \
-         patch("quota_monitor.cli.run.scan_claude", return_value=fake), \
-         patch("quota_monitor.cli.run.read_precise", return_value=precise), \
-         patch("quota_monitor.keepalive.seamless.seamless_tick", return_value=(MagicMock(), default_state())) as tick:
-        rc = run_once(
-            config_path=cfg_path,
-            env_path=env_path,
-            state_path=state_path,
-            now=now,
-            dry_run=False,
-        )
-
-    assert rc == 0
-    assert tick.call_args.kwargs["known_reset_at"] == precise_reset
 
 
 def test_run_once_returns_nonzero_when_config_missing(tmp_path):
@@ -690,6 +647,62 @@ def test_cf_mode_schedules_when_only_jsonl_turns_hit(tmp_path):
     assert sent_alert.reset_at > now  # future
 
 
+def test_cf_mode_does_not_roll_past_precise_reset_without_new_window_activity():
+    cfg = MagicMock()
+    cfg.probes.claude.precise_threshold_percent = 30
+    cfg.probes.claude.threshold_turns = 5
+    cfg.probes.codex.threshold_percent = 30
+    now = 10_600.0
+    precise_reset = 10_000.0
+    precise = MagicMock(
+        five_hour_pct=80.0,
+        five_hour_resets_at=precise_reset,
+    )
+    old_window_timestamps = (precise_reset - 600,) * 10
+    claude_result = MagicMock(source="claude", timestamps=old_window_timestamps, extra={})
+    primary = MagicMock(name="cf")
+
+    new_state = _maybe_schedule_cf_recovered_alert(
+        cfg=cfg,
+        state=default_state(),
+        precise=precise,
+        claude_result=claude_result,
+        codex_result=None,
+        now=now,
+        primary=primary,
+        dry_run=False,
+    )
+
+    primary.send.assert_not_called()
+    assert new_state.claude.scheduled_alert_reset_at == 0
+
+
+def test_cf_mode_does_not_roll_last_known_reset_without_new_window_activity():
+    cfg = MagicMock()
+    cfg.probes.claude.precise_threshold_percent = 30
+    cfg.probes.claude.threshold_turns = 5
+    cfg.probes.codex.threshold_percent = 30
+    known_reset = 10_000.0
+    now = known_reset + WINDOW_SECONDS + 600
+    old_window_timestamps = (known_reset - 600,) * 10
+    claude_result = MagicMock(source="claude", timestamps=old_window_timestamps, extra={})
+    primary = MagicMock(name="cf")
+
+    new_state = _maybe_schedule_cf_recovered_alert(
+        cfg=cfg,
+        state=State(claude=ClaudeState(last_known_good_reset_at=known_reset)),
+        precise=None,
+        claude_result=claude_result,
+        codex_result=None,
+        now=now,
+        primary=primary,
+        dry_run=False,
+    )
+
+    primary.send.assert_not_called()
+    assert new_state.claude.scheduled_alert_reset_at == 0
+
+
 def test_cf_mode_schedules_codex_alert_via_cf(tmp_path):
     cfg_path = _write_cf_with_codex_config(tmp_path)
     env_path = _write_env(tmp_path)
@@ -836,3 +849,142 @@ def test_cf_mode_without_telegram_secrets_does_not_return_3(tmp_path):
     assert rc == 0
     assert state_path.exists()
     cf_instance.send.assert_called_once()
+
+
+# --- post-reset activation integration through run_once ---
+
+def _write_keepalive_cf_config(tmp_path: Path) -> Path:
+    cfg = tmp_path / "config.toml"
+    cfg.write_text("""
+locale = "en"
+[probes.claude]
+enabled = true
+threshold_turns = 5
+window_hours = 5
+precise_threshold_percent = 30
+[probes.codex]
+enabled = false
+[notifiers]
+primary = "cloudflare_relay"
+fallback = ""
+[notifiers.telegram]
+[notifiers.cloudflare_relay]
+enabled = true
+webhook_url = "https://relay.example.com/api/schedule"
+[keepalive]
+enabled = true
+model = "haiku"
+phrase_pool = []
+max_activation_attempts = 3
+""")
+    return cfg
+
+
+def test_post_reset_activation_fires_via_run_once_when_anchor_stale_and_no_activity(tmp_path):
+    """Frank's actual bug scenario: HUD anchor cached at 07:10, user slept,
+    LaunchAgent tick fires at 12:10. The new tick should fire activation,
+    not generate a phantom CF schedule for 17:10."""
+    cfg_path = _write_keepalive_cf_config(tmp_path)
+    env_path = _write_env(tmp_path)
+    state_path = tmp_path / "state.json"
+    morning_reset = 10_000.0
+    now = morning_reset + WINDOW_SECONDS + 600  # 10 min into the next window
+    state_path.write_text(json.dumps({
+        "schema_version": 1,
+        "claude": {
+            "alerted_for_reset": 0, "cooldown_until": 0,
+            "last_known_good_reset_at": morning_reset,
+            "scheduled_alert_reset_at": 0,
+            "keepalive_attempted_for_reset": 0,
+            "keepalive_attempt_count": 0,
+        },
+        "codex": {},
+        "keepalive": {"phrase_pool_used_indices": [], "phrase_pool_size_at_init": 0},
+    }))
+    # No timestamps after the previous reset → keepalive must fire
+    fake = MagicMock(source="claude", timestamps=(morning_reset - 1000,), extra={})
+
+    with patch("quota_monitor.cli.run.scan_claude", return_value=fake), \
+         patch("quota_monitor.cli.run.read_precise", return_value=None), \
+         patch("quota_monitor.cli.run.fire_activation", side_effect=lambda *, phrase_state, **_: (True, phrase_state)) as fire, \
+         patch("quota_monitor.cli.run.platform_paths") as mock_paths, \
+         patch("quota_monitor.cli.run.CloudflareRelayNotifier") as CF:
+        cf_instance = MagicMock(name="cf")
+        cf_instance.name = "cloudflare_relay"
+        CF.return_value = cf_instance
+        mock_paths.rate_limits_cache.return_value = tmp_path / "no_cache.json"
+        mock_paths.calibration_file.return_value = tmp_path / "cal.json"
+        rc = run_once(
+            config_path=cfg_path, env_path=env_path, state_path=state_path,
+            now=now, dry_run=False,
+        )
+
+    assert rc == 0
+    fire.assert_called_once()
+    # CF schedule must NOT fire — old phantom-roll path is dead (codex's
+    # window-activity guard) AND we have no real new activity yet.
+    cf_instance.send.assert_not_called()
+    # State persisted the attempt
+    saved = json.loads(state_path.read_text())
+    expected_reset = int(morning_reset + WINDOW_SECONDS)
+    assert saved["claude"]["keepalive_attempted_for_reset"] == expected_reset
+    assert saved["claude"]["keepalive_attempt_count"] == 1
+
+
+def test_post_reset_activation_skips_and_cf_schedules_when_real_activity_present(tmp_path):
+    """Next-tick scenario after a successful activation: the JSONL now has
+    a real post-reset timestamp at 12:11. Keepalive must NOT fire again,
+    and CF should schedule the recovery alert at 12:11+5h, NOT at
+    stale_anchor+5h."""
+    cfg_path = _write_keepalive_cf_config(tmp_path)
+    env_path = _write_env(tmp_path)
+    state_path = tmp_path / "state.json"
+    morning_reset = 10_000.0
+    real_window_start = morning_reset + WINDOW_SECONDS + 60  # 12:11-equivalent
+    now = real_window_start + 240  # a few minutes after
+    state_path.write_text(json.dumps({
+        "schema_version": 1,
+        "claude": {
+            "alerted_for_reset": 0, "cooldown_until": 0,
+            "last_known_good_reset_at": morning_reset,
+            "scheduled_alert_reset_at": 0,
+            # leftover from the prior tick that fired the activation
+            "keepalive_attempted_for_reset": int(morning_reset + WINDOW_SECONDS),
+            "keepalive_attempt_count": 1,
+        },
+        "codex": {},
+        "keepalive": {"phrase_pool_used_indices": [], "phrase_pool_size_at_init": 0},
+    }))
+    # 10 real turns starting at the activation moment — enough to trip
+    # the threshold_turns guard for CF scheduling.
+    timestamps = tuple(real_window_start + i * 5 for i in range(10))
+    fake = MagicMock(source="claude", timestamps=timestamps, extra={})
+
+    with patch("quota_monitor.cli.run.scan_claude", return_value=fake), \
+         patch("quota_monitor.cli.run.read_precise", return_value=None), \
+         patch("quota_monitor.cli.run.fire_activation", side_effect=lambda *, phrase_state, **_: (True, phrase_state)) as fire, \
+         patch("quota_monitor.cli.run.platform_paths") as mock_paths, \
+         patch("quota_monitor.cli.run.CloudflareRelayNotifier") as CF:
+        cf_instance = MagicMock(name="cf")
+        cf_instance.name = "cloudflare_relay"
+        CF.return_value = cf_instance
+        mock_paths.rate_limits_cache.return_value = tmp_path / "no_cache.json"
+        mock_paths.calibration_file.return_value = tmp_path / "cal.json"
+        rc = run_once(
+            config_path=cfg_path, env_path=env_path, state_path=state_path,
+            now=now, dry_run=False,
+        )
+
+    assert rc == 0
+    # Activation NOT called this tick — we already have local activity
+    fire.assert_not_called()
+    # CF should have been called; reset_at must reflect REAL activity
+    # (real_window_start + 5h), not stale anchor (morning_reset + 5h).
+    cf_instance.send.assert_called_once()
+    sent_alert = cf_instance.send.call_args.args[0]
+    # Allow a small tolerance — replay_windows applies a small correction
+    assert abs(sent_alert.reset_at - (real_window_start + WINDOW_SECONDS)) < 600
+    # State cleared (no attempted_for_reset because activity confirmed)
+    saved = json.loads(state_path.read_text())
+    assert saved["claude"]["keepalive_attempted_for_reset"] == 0
+    assert saved["claude"]["keepalive_attempt_count"] == 0

@@ -43,10 +43,13 @@ MESSAGES = {
     "wizard.test_scheduled": "测试消息已调度 — 约 5 秒后通过 Telegram 送达。",
     "wizard.cf_test_message": "QuotaMonitor setup 测试 — Cloudflare Queue 投递正常。",
     "wizard.keepalive.warning": (
-        "ℹ️ 防休眠 (Keepalive) 的作用是自动发送请求，为你保活 Claude Code 的 5 小时额度窗口。\n"
+        "ℹ️ Post-reset 防休眠：当 5 小时额度窗口刚 reset、本地 Claude Code JSONL 在\n"
+        "   新窗口内没有任何活动时，自动发起一次最小化的 `claude -p` 调用，让新窗口\n"
+        "   产生本地锚点。从此恢复通知的预测不再依赖陈旧的 Anthropic 侧 anchor，\n"
+        "   不会再有“幻觉恢复通知”。\n"
         "⚠️ 风险与限制:\n"
         "  1. 服务条款 — Anthropic AUP 可能将自动化请求归类为滥用。\n"
-        "  2. 休眠失效 — seamless 策略在 macOS 休眠期间会停止工作。\n"
+        "  2. 休眠失效 — keepalive 在 macOS 休眠期间会停止工作。\n"
         "     自然的 5 小时重置仍会发生；如果电脑休眠，keepalive 无法挽救额度。\n"
     ),
     "wizard.statusline.title": "\n=== ({step}) StatusLine 精确用量追踪 ===",

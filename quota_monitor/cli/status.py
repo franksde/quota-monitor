@@ -34,7 +34,11 @@ def show_status(*, state_path: Path, config_path: Path) -> int:
     print(t("cli.status.window", source="codex",
             start="-",
             reset=_human(state.codex.alerted_for_reset)))
-    if state.keepalive.last_seamless_scheduled_for:
-        print(f"keepalive seamless scheduled for: {_human(state.keepalive.last_seamless_scheduled_for)}")
+    if state.claude.keepalive_attempted_for_reset:
+        print(
+            f"keepalive post-reset activation: tried for "
+            f"{_human(state.claude.keepalive_attempted_for_reset)} "
+            f"(attempts={state.claude.keepalive_attempt_count})"
+        )
     print(f"keepalive phrase pool used: {len(state.keepalive.phrase_pool_used_indices)} / {state.keepalive.phrase_pool_size_at_init}")
     return 0

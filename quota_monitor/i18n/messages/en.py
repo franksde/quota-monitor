@@ -43,11 +43,14 @@ MESSAGES = {
     "wizard.test_scheduled": "Test message scheduled — it will arrive via Telegram in ~5 seconds.",
     "wizard.cf_test_message": "QuotaMonitor setup test — Cloudflare Queue delivery is working!",
     "wizard.keepalive.warning": (
-        "ℹ️ Keepalive sends automated requests to Claude Code to keep your 5-hour quota window active.\n"
+        "ℹ️ Post-reset keepalive: when a 5h quota window resets and your local Claude Code\n"
+        "   JSONL has no activity in the new window, a minimal `claude -p` call is fired so\n"
+        "   the new window has a real local anchor. This stops 'phantom recovery' alerts\n"
+        "   that come from extrapolating off stale Anthropic-side anchors.\n"
         "⚠️ Risks & Limitations:\n"
         "  1. ToS — Anthropic AUP may classify automated keepalive as abuse.\n"
-        "  2. Sleep — seamless strategy stops working while macOS sleeps.\n"
-        "     The natural 5h reset still happens; keepalive cannot save it if the Mac is asleep.\n"
+        "  2. Sleep — keepalive stops working while macOS sleeps. The natural 5h reset\n"
+        "     still happens; keepalive cannot save it if the Mac is asleep.\n"
     ),
     "wizard.statusline.title": "\n=== ({step}) StatusLine Precise Usage Tracking ===",
     "wizard.statusline.enable_fresh": (

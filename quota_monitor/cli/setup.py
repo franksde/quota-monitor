@@ -13,7 +13,6 @@ from ._preflight import preflight_check
 
 def _render_config(answers: dict) -> str:
     keepalive_enabled = "true" if answers.get("keepalive_enabled") else "false"
-    keepalive_strategy = answers.get("keepalive_strategy", "seamless")
     primary = answers.get("primary", "telegram")
     fallback = answers.get("fallback", "")
     cf_enabled = "true" if answers.get("cloudflare_enabled") else "false"
@@ -44,11 +43,9 @@ webhook_url = "{cf_url}"
 
 [keepalive]
 enabled = {keepalive_enabled}
-strategy = "{keepalive_strategy}"
 model = "haiku"
 phrase_pool = []
-seamless_trigger_minutes = 30
-seamless_buffer_seconds = 60
+max_activation_attempts = 3
 """
 
 
@@ -184,8 +181,6 @@ def _collect_interactive_answers(*, existing_secrets: Optional[dict[str, str]] =
     print(t("wizard.step6.title"))
     print(t("wizard.keepalive.warning"))
     answers["keepalive_enabled"] = ask_yes_no(t("wizard.step6.enable"), default=False)
-    if answers["keepalive_enabled"]:
-        answers["keepalive_strategy"] = "seamless"
 
     print(t("wizard.statusline.title", step="7/8"))
     from ..platform import paths as platform_paths
