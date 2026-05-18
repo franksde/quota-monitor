@@ -49,7 +49,7 @@ token** (Workers + KV only), not your Global API Key. Revoke after.
 
 ## StatusLine Precise Usage Tracking (Optional)
 
-quota-monitor can read real-time quota data directly from Claude Code via its [statusLine](https://docs.anthropic.com/en/docs/claude-code/status-line) mechanism, giving you precise 5-hour and 7-day usage percentages and exact reset times.
+quota-monitor can read quota data from Claude Code via its [statusLine](https://docs.anthropic.com/en/docs/claude-code/status-line) mechanism. When the statusLine payload contains valid `rate_limits`, this gives you precise 5-hour and 7-day usage percentages and exact reset times — without making any extra API calls.
 
 ### How it works
 
@@ -97,7 +97,21 @@ The estimated path infers the 5-hour window boundary from local `~/.claude/proje
 - **You use a third-party model router (e.g. `cc switch`).** Those calls write local jsonl entries that look like API calls, but they never reach Anthropic and don't shift Anthropic's 5-hour window. Conversely, the call that actually *started* Anthropic's current window may never appear locally.
 - **You also use claude.ai web chat.** Web messages count toward the same 5-hour quota but are not written to any local file.
 
-In either case, the probe is guessing. Measured drift on a real cc-switch install: **roughly 60 minutes off when activity is continuous; up to ~4 hours off shortly after the actual server-side reset** (replay can't see the reset event, so it keeps extending an already-stale window). The fix is to keep statusLine installed: it caches the precise reset time from Claude Code's own rate-limit headers and the probe trusts that when available.
+In either case, the probe is guessing. Measured drift on a real cc-switch install: **roughly 60 minutes off when activity is continuous; up to ~4 hours off shortly after the actual server-side reset** (replay can't see the reset event, so it keeps extending an already-stale window). For Anthropic-direct usage, keep statusLine installed: it caches the precise reset time from Claude Code's own rate-limit headers and the probe trusts that when available. For third-party routing or cc switch workflows, install a supported HUD tool that polls usage; otherwise quota-monitor may fall back to estimation.
+
+### Accuracy model
+
+quota-monitor resolves reset times through a priority chain. Accuracy depends on which data source is available:
+
+| Scenario | Source used | Accuracy |
+|---|---|---|
+| Claude Code direct to Anthropic, fresh `rate_limits` in statusLine payload | statusLine wrapper cache | precise |
+| Claude Code direct to Anthropic, no `rate_limits` yet | HUD cache or replay fallback | depends |
+| cc switch / third-party routing + HUD installed | HUD cache (e.g. claude-hud) | precise |
+| cc switch / third-party routing, no HUD | replay_windows heuristic | estimated (hour-level error) |
+| Wrapper cache with expired `resets_at` | ignored — falls back to next source | depends |
+
+The statusLine wrapper is a **fast path**, not an authoritative source. It passively caches `rate_limits` from Claude Code's statusLine stdin; it does not call the Anthropic API. If the payload does not carry fresh data, the cache may be stale. quota-monitor does **not** currently implement direct Anthropic OAuth usage API polling.
 
 ## Quickstart
 

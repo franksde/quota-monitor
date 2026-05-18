@@ -50,7 +50,7 @@ MESSAGES = {
     ),
     "wizard.statusline.title": "\n=== ({step}) StatusLine 精确用量追踪 ===",
     "wizard.statusline.enable_fresh": (
-        "是否启用 StatusLine 精确用量追踪？将配置一个轻量脚本读取 Claude Code 的实时额度信息。"
+        "是否启用 StatusLine 用量追踪？将配置一个轻量脚本，在 Claude Code 的 statusLine payload 包含额度数据时自动缓存。"
     ),
     "wizard.statusline.enable_existing": (
         "检测到已安装自定义状态栏工具（`{cmd_preview}`）。是否同意包装一层以获取精确用量信息？"

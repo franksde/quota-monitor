@@ -45,7 +45,7 @@
 
 ## StatusLine 精确用量追踪（可选）
 
-quota-monitor 可以通过 Claude Code 的 [statusLine](https://docs.anthropic.com/en/docs/claude-code/status-line) 机制直接读取实时额度数据，获取精确的 5 小时和 7 天使用百分比及重置时间。
+quota-monitor 可以通过 Claude Code 的 [statusLine](https://docs.anthropic.com/en/docs/claude-code/status-line) 机制读取额度数据。当 Claude Code 的 statusLine payload 包含有效的 `rate_limits` 时，可获取精确的 5 小时和 7 天使用百分比及重置时间——且无需额外调用 API。
 
 ### 工作原理
 
@@ -93,7 +93,21 @@ quota-monitor statusline uninstall
 - **使用第三方模型路由（例如 `cc switch`）**。这些调用会写本地 jsonl，但实际上根本没发到 Anthropic，不会影响 Anthropic 5 小时窗口的起点；反过来，真正启动 Anthropic 当前窗口的那条请求可能本地一条记录都没有。
 - **同时使用 claude.ai 网页聊天**。网页消息计入同一 5 小时配额，但不会写任何本地文件。
 
-这两种情况下，probe 只能猜。一台真实 cc-switch 机器上的实测偏差：**连续使用时大约偏 60 分钟；刚刚过完一次真实 reset 之后偏差可达 ~4 小时**（算法看不到 reset 事件，只会沿用已经过期的旧窗口继续推算）。补救办法是装好 statusLine：它会把 Claude Code 自带的精确 rate-limit 信息缓存下来，probe 优先使用这个精确值。
+这两种情况下，probe 只能猜。一台真实 cc-switch 机器上的实测偏差：**连续使用时大约偏 60 分钟；刚刚过完一次真实 reset 之后偏差可达 ~4 小时**（算法看不到 reset 事件，只会沿用已经过期的旧窗口继续推算）。对于直连 Anthropic 的使用，推荐安装 statusLine wrapper：它会把 Claude Code 自带的精确 rate-limit 信息缓存下来，probe 优先使用这个精确值。对于 cc switch / 第三方路由场景，建议安装支持的 HUD 工具来轮询用量数据；否则 quota-monitor 可能只能回退到估算。
+
+### 精确度模型
+
+quota-monitor 通过优先级链解析重置时间，精确度取决于可用的数据来源：
+
+| 场景 | 使用的数据源 | 精确度 |
+|---|---|---|
+| Claude Code 直连 Anthropic，statusLine payload 有 fresh `rate_limits` | statusLine wrapper 缓存 | 精确 |
+| Claude Code 直连 Anthropic，尚无 `rate_limits` | HUD 缓存或 replay 兜底 | 取决于具体情况 |
+| cc switch / 第三方路由 + 已安装 HUD | HUD 缓存（如 claude-hud） | 精确 |
+| cc switch / 第三方路由，无 HUD | replay_windows 启发式 | 估算（小时级误差） |
+| Wrapper 缓存中 `resets_at` 已过期 | 被忽略，回退到下一数据源 | 取决于具体情况 |
+
+statusLine wrapper 是一条**快速路径**，而非权威数据源。它被动缓存 Claude Code statusLine stdin 中的 `rate_limits`，不会主动调用 Anthropic API。如果 payload 未携带新数据，缓存可能已过期。quota-monitor **目前不实现**直接调用 Anthropic OAuth usage API。
 
 ## 快速开始
 

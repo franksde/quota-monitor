@@ -50,8 +50,8 @@ MESSAGES = {
     ),
     "wizard.statusline.title": "\n=== ({step}) StatusLine Precise Usage Tracking ===",
     "wizard.statusline.enable_fresh": (
-        "Enable statusLine usage tracking? A lightweight script will read real-time "
-        "quota data from Claude Code."
+        "Enable statusLine usage tracking? A lightweight script will cache quota data "
+        "from Claude Code's statusLine payload when available."
     ),
     "wizard.statusline.enable_existing": (
         "Detected custom status line tool (`{cmd_preview}`). Allow wrapping it to capture "
