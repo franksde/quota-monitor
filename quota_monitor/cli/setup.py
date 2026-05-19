@@ -1,4 +1,5 @@
 import json
+import shutil
 import sys
 from pathlib import Path
 from typing import Optional
@@ -204,9 +205,21 @@ def _collect_interactive_answers(*, existing_secrets: Optional[dict[str, str]] =
     return answers
 
 
+def _launcher_args() -> list[str]:
+    # Prefer the `quota-monitor` console script — Homebrew's shim path stays
+    # stable across `brew upgrade` while its internal shebang auto-updates to
+    # the current Cellar version. Same is true for pipx's bin path. Falling
+    # back to `sys.executable -m quota_monitor` reproduces the old behavior
+    # for setups without an entry-point script on PATH.
+    launcher = shutil.which("quota-monitor")
+    if launcher:
+        return [launcher, "run"]
+    return [sys.executable, "-m", "quota_monitor", "run"]
+
+
 def _print_crontab_line() -> None:
-    py = sys.executable
-    print(f"\nAdd to your crontab:\n  */5 * * * * {py} -m quota_monitor run >> ~/.quota-monitor/quota-monitor.log 2>&1\n")
+    cmd = " ".join(_launcher_args())
+    print(f"\nAdd to your crontab:\n  */5 * * * * {cmd} >> ~/.quota-monitor/quota-monitor.log 2>&1\n")
 
 
 def _install_launchagent(*, data_dir: Path) -> None:
@@ -215,7 +228,7 @@ def _install_launchagent(*, data_dir: Path) -> None:
     label = "io.github.frank.quotamonitor"
     plist = generate_launch_agent_plist(
         label=label,
-        program_arguments=[sys.executable, "-m", "quota_monitor", "run"],
+        program_arguments=_launcher_args(),
         interval_seconds=300,
         stdout_log=data_dir / "quota-monitor.log",
         stderr_log=data_dir / "quota-monitor.err.log",

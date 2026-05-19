@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.3.1 — 2026-05-19
+
+- `fix(launchagent)`: write a **stable launcher path** into the generated
+  `~/Library/LaunchAgents/io.github.frank.quotamonitor.plist` so the agent
+  survives `brew upgrade` / `pipx upgrade`. Pre-0.3.1 the plist embedded
+  `sys.executable`, which on a Homebrew install resolves to a versioned
+  `Cellar/<old>/libexec/bin/python` that vanishes on upgrade — leaving the
+  LaunchAgent dead with `EX_CONFIG` (78) and no keepalive ticks until manual
+  reinstall. The new logic prefers the `quota-monitor` console-script shim on
+  `$PATH` (its filesystem path is version-stable; the shebang inside it
+  auto-updates on each install), falling back to the old `python -m` form
+  only when no entry-point script is found.
+- `chore`: same fix applied to the `--print-crontab` line.
+
+**Upgrade note for existing users**: after `brew upgrade quota-monitor` (or
+`pipx upgrade quota-monitor`), re-run `quota-monitor setup` and accept the
+LaunchAgent install option to regenerate the plist with the stable path. If
+you skip this, your old plist may still point at a removed Cellar version.
+Verify with `launchctl print gui/$(id -u)/io.github.frank.quotamonitor | grep program` —
+the program path should be your shim (e.g. `/opt/homebrew/bin/quota-monitor`),
+not a `Cellar/<version>/` path.
+
 ## v0.3.0 — 2026-05-18
 
 - `feat(keepalive)`: rework keepalive into **post-reset window anchoring**.
