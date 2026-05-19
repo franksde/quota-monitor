@@ -21,6 +21,8 @@ from typing import Optional, Sequence
 
 from .phrases import PhraseState, pick_phrase
 
+_SYSTEM_PROMPT = "Reply exactly OK."
+
 
 # Same fallback list as seamless used to keep — macOS LaunchAgent's PATH
 # excludes Homebrew prefixes, so plain `shutil.which("tmux")` fails under
@@ -84,7 +86,8 @@ def fire_activation(
         f"{shlex.quote(claude_cli)} -p {quoted_phrase} "
         f"--model {shlex.quote(model)} "
         f"--setting-sources user "
-        f"--system-prompt ping --tools '' --disable-slash-commands"
+        f"--system-prompt {shlex.quote(_SYSTEM_PROMPT)} "
+        f"--tools '' --disable-slash-commands"
     )
     session_name = f"qm_keepalive_{time.time_ns()}"
     home_cd = f"cd {shlex.quote(str(Path.home()))} && "

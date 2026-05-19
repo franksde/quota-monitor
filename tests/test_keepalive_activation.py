@@ -29,7 +29,8 @@ def test_fires_tmux_with_zero_delay_when_no_delay_specified():
     assert "--no-session-persistence" not in payload
     assert "--bare" not in payload
     assert "--setting-sources user" in payload
-    assert "--system-prompt ping" in payload
+    assert "--system-prompt" in payload
+    assert "Reply exactly OK." in payload
     assert "--tools" in payload
     assert "--disable-slash-commands" in payload
     assert payload.startswith("cd ")

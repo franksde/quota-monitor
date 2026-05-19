@@ -404,11 +404,17 @@ phrase pool 仅消除"消息内容 = `hi`"这一弱信号;**不能规避基于�
 ### 8.4 续杯命令
 
 ```python
-cmd = f'{shell_path} -lc "{claude_cli_path} -p \'{phrase}\' --model {model} --no-session-persistence"'
+cmd = (
+    f'{shell_path} -lc "{claude_cli_path} -p \'{phrase}\' '
+    f'--model {model} --setting-sources user '
+    f'--system-prompt \'Reply exactly OK.\' --tools \'\' --disable-slash-commands"'
+)
 ```
 
 - `shell_path`、`claude_cli_path` 由 setup 向导探测一次写入 config,**runtime 不依赖 PATH**
   (原项目 hardcode `$HOME/.local/bin:$HOME/.n/bin` 是反模式,因为 cron 跑时 PATH 是裸的)
+- 不使用 `--no-session-persistence` / `--bare`: keepalive 必须写入 Claude JSONL,
+  且必须走订阅账号的 OAuth/keychain auth,否则 post-reset activation 无法被下一轮扫描确认。
 - 成功/失败都 log,失败不重试(下次 cron tick 自然重试)
 
 ---

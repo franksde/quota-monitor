@@ -3,13 +3,17 @@ import subprocess
 import sys
 from pathlib import Path
 
+_SYSTEM_PROMPT = "Reply exactly OK."
+
 
 def run_keepalive(*, claude_cli: str, shell: str, phrase: str, model: str, timeout: int = 60) -> bool:
     """Invoke claude CLI to send a single keepalive message. Returns True on success."""
     quoted_phrase = shlex.quote(phrase)
     inner = (
         f"{shlex.quote(claude_cli)} -p {quoted_phrase} "
-        f"--model {shlex.quote(model)} --setting-sources user"
+        f"--model {shlex.quote(model)} --setting-sources user "
+        f"--system-prompt {shlex.quote(_SYSTEM_PROMPT)} "
+        f"--tools '' --disable-slash-commands"
     )
     cmd = [shell, "-lc", inner]
     try:

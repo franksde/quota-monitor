@@ -17,6 +17,9 @@ def test_runner_invokes_claude_cli_with_phrase_and_model():
     assert "haiku" in full
     assert "--no-session-persistence" not in full
     assert "--setting-sources user" in full
+    assert "--system-prompt 'Reply exactly OK.'" in full
+    assert "--tools" in full
+    assert "--disable-slash-commands" in full
     assert run.call_args.kwargs["cwd"] == Path.home()
 
 

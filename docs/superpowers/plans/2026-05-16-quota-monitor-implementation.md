@@ -2383,7 +2383,12 @@ import sys
 def run_keepalive(*, claude_cli: str, shell: str, phrase: str, model: str, timeout: int = 60) -> bool:
     """Invoke claude CLI to send a single keepalive message. Returns True on success."""
     quoted_phrase = shlex.quote(phrase)
-    inner = f"{shlex.quote(claude_cli)} -p {quoted_phrase} --model {shlex.quote(model)} --no-session-persistence"
+    inner = (
+        f"{shlex.quote(claude_cli)} -p {quoted_phrase} "
+        f"--model {shlex.quote(model)} --setting-sources user "
+        f"--system-prompt {shlex.quote('Reply exactly OK.')} "
+        f"--tools '' --disable-slash-commands"
+    )
     cmd = [shell, "-lc", inner]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
@@ -2715,7 +2720,9 @@ def seamless_tick(
     quoted_phrase = shlex.quote(phrase)
     inner = (
         f"{shlex.quote(claude_cli)} -p {quoted_phrase} "
-        f"--model {shlex.quote(model)} --no-session-persistence"
+        f"--model {shlex.quote(model)} --setting-sources user "
+        f"--system-prompt {shlex.quote('Reply exactly OK.')} "
+        f"--tools '' --disable-slash-commands"
     )
     session_name = f"qm_keepalive_{int(time.time())}"
     tmux_cmd = ["tmux", "new-session", "-d", "-s", session_name,
@@ -4574,4 +4581,3 @@ After writing the full plan, the author re-checked it against the spec and appli
 4. **Placeholder scan**: no TBDs or vague instructions remain. Every step has either complete code or a verbatim file content. Task 28 (English README) references spec §11 verbatim content — that's fine because the spec is the source.
 
 5. **Spec coverage**: every requirement in spec §3-§14 maps to at least one task (T1-T32).
-

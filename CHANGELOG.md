@@ -7,7 +7,7 @@
   call no longer uses `--no-session-persistence` (which prevented JSONL
   activity from being written) or `--bare` (which skips OAuth/keychain
   auth); it now runs from `$HOME` with `--setting-sources user`,
-  `--system-prompt ping`, no tools, and slash commands disabled.
+  a terse `--system-prompt`, no tools, and slash commands disabled.
 - `fix(probe)`: ignore synthetic Claude CLI "Not logged in" JSONL turns
   so a failed keepalive auth attempt does not count as successful
   post-reset activity.
@@ -228,9 +228,10 @@ surface; existing installs upgrade by pulling the new code and re-running
   kept only `seamless`. Restored tmux dependency (after a brief
   detour to nohup) and resolved via absolute path so launchd's
   restricted PATH still finds it. LaunchAgent plist now sets PATH to
-  include Homebrew + MacPorts. Keepalive invocation uses `--bare
-  --system-prompt ping --tools '' --disable-slash-commands` so the
-  renewal call costs roughly zero quota instead of ~3%.
+  include Homebrew + MacPorts. This release used `--bare
+  --system-prompt ping --tools '' --disable-slash-commands`; that was
+  later superseded because `--bare` skips OAuth/keychain auth and
+  `--no-session-persistence` prevents JSONL activity.
 - Alert and status output use **local time, no UTC suffix** —
   notifications meet users where they are.
 - Anchor-based replay (`window_from_known_reset`) reduces estimated-mode
