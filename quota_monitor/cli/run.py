@@ -401,7 +401,13 @@ def run_once(
         except Exception as e:
             print(t("log.probe_failed", source="codex", error=e), file=sys.stderr)
 
-    if codex_result is not None and codex_result.extra.get("fetched") is True:
+    if (
+        codex_result is not None
+        and (
+            codex_result.extra.get("fetched") is True
+            or codex_result.extra.get("source") == "codex-auth"
+        )
+    ):
         state = replace(state, codex=replace(
             state.codex,
             last_fetch_at=int(now),

@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+- `fix(keepalive)`: keep post-reset activation compatible with Claude
+  Code subscription auth while still minimizing context. The activation
+  call no longer uses `--no-session-persistence` (which prevented JSONL
+  activity from being written) or `--bare` (which skips OAuth/keychain
+  auth); it now runs from `$HOME` with `--setting-sources user`,
+  `--system-prompt ping`, no tools, and slash commands disabled.
+- `fix(probe)`: ignore synthetic Claude CLI "Not logged in" JSONL turns
+  so a failed keepalive auth attempt does not count as successful
+  post-reset activity.
+- `fix(codex)`: tolerate `codex-auth` multi-account setups by falling
+  back to the active account's cached `last_usage.primary` in
+  `~/.codex/accounts/registry.json` when the direct Codex usage API is
+  unavailable, and reuse prior quota state instead of logging repeated
+  401 failures when no cache is available.
+
 ## v0.3.1 — 2026-05-19
 
 - `fix(launchagent)`: write a **stable launcher path** into the generated

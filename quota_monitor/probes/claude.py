@@ -44,6 +44,32 @@ def _has_following_assistant_request(records: list[dict], index: int) -> bool:
     return False
 
 
+def _contains_not_logged_in(value) -> bool:
+    if isinstance(value, str):
+        return "not logged in" in value.lower() or "please run /login" in value.lower()
+    if isinstance(value, list):
+        return any(_contains_not_logged_in(item) for item in value)
+    if isinstance(value, dict):
+        return any(_contains_not_logged_in(item) for item in value.values())
+    return False
+
+
+def _has_following_synthetic_login_failure(records: list[dict], index: int) -> bool:
+    for rec in records[index + 1:]:
+        if rec.get("type") == "user":
+            return False
+        if rec.get("type") != "assistant":
+            continue
+        message = rec.get("message") or {}
+        if not isinstance(message, dict):
+            continue
+        if rec.get("requestId"):
+            return False
+        if message.get("model") == "<synthetic>" and _contains_not_logged_in(message.get("content")):
+            return True
+    return False
+
+
 def _is_uncounted_local_command(records: list[dict], index: int) -> bool:
     message = records[index].get("message") or {}
     content = message.get("content") if isinstance(message, dict) else None
@@ -98,6 +124,8 @@ def scan_claude(*, app_dir: Path, cli_dir: Path, costs_file: Path, now: float, w
                 if (rec.get("message") or {}).get("role") != "user":
                     continue
                 if _is_uncounted_local_command(records, index):
+                    continue
+                if _has_following_synthetic_login_failure(records, index):
                     continue
                 ts_str = rec.get("timestamp")
                 if not ts_str:

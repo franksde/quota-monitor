@@ -23,12 +23,16 @@ def test_fires_tmux_with_zero_delay_when_no_delay_specified():
     payload = cmd[-1]
     # No `sleep N &&` prefix when delay=0
     assert "sleep " not in payload
-    # Minimal-context claude flags still present
+    # Minimal-context claude flags still present, but the session must persist
+    # so the next monitor tick can see the JSONL activity.
     assert "/c -p" in payload
-    assert "--bare" in payload
+    assert "--no-session-persistence" not in payload
+    assert "--bare" not in payload
+    assert "--setting-sources user" in payload
     assert "--system-prompt ping" in payload
     assert "--tools" in payload
     assert "--disable-slash-commands" in payload
+    assert payload.startswith("cd ")
     assert "/sh -lc" in payload
 
 

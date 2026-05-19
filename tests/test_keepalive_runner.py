@@ -1,4 +1,6 @@
+from pathlib import Path
 from unittest.mock import patch, MagicMock
+
 from quota_monitor.keepalive.runner import run_keepalive
 
 
@@ -13,6 +15,9 @@ def test_runner_invokes_claude_cli_with_phrase_and_model():
     assert "/opt/claude" in full
     assert "hello" in full
     assert "haiku" in full
+    assert "--no-session-persistence" not in full
+    assert "--setting-sources user" in full
+    assert run.call_args.kwargs["cwd"] == Path.home()
 
 
 def test_runner_returns_false_on_nonzero_exit():

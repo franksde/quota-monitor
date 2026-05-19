@@ -98,6 +98,30 @@ def test_excludes_local_command_without_assistant_request(tmp_path):
     assert result.timestamps == (1778846400.0,)
 
 
+def test_excludes_synthetic_not_logged_in_cli_turn(tmp_path):
+    """A failed `claude -p` login attempt writes a user `ping` plus a
+    synthetic assistant message to JSONL. It did not hit Anthropic and must
+    not count as post-reset activity, otherwise keepalive stops retrying.
+    """
+    cli = tmp_path / "projects" / "x"
+    cli.mkdir(parents=True)
+    f = cli / "session.jsonl"
+    f.write_text(
+        '{"type":"queue-operation","operation":"enqueue","timestamp":"2026-05-15T12:00:00.000Z","sessionId":"s","content":"ping"}\n'
+        '{"type":"queue-operation","operation":"dequeue","timestamp":"2026-05-15T12:00:00.001Z","sessionId":"s","content":"ping"}\n'
+        '{"type":"user","message":{"role":"user","content":"ping"},"timestamp":"2026-05-15T12:00:00.002Z","entrypoint":"sdk-cli","sessionId":"s"}\n'
+        '{"type":"assistant","message":{"role":"assistant","model":"<synthetic>","content":[{"type":"text","text":"Not logged in - Please run /login"}]},"timestamp":"2026-05-15T12:00:00.003Z","sessionId":"s"}\n'
+    )
+    result = scan_claude(
+        app_dir=tmp_path / "nope",
+        cli_dir=tmp_path,
+        costs_file=tmp_path / "nope.jsonl",
+        now=1778850000.0,
+        window_seconds=5 * 3600,
+    )
+    assert result.timestamps == ()
+
+
 def test_ignores_costs_jsonl(tmp_path):
     """costs.jsonl is not a reliable activity source: for cc-switch / third-party
     users every line is a `model=unknown, tokens=0` placeholder. Even when populated

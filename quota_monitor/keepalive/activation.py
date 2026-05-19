@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import sys
 import time
+from pathlib import Path
 from typing import Optional, Sequence
 
 from .phrases import PhraseState, pick_phrase
@@ -81,14 +82,16 @@ def fire_activation(
     quoted_phrase = shlex.quote(phrase)
     inner = (
         f"{shlex.quote(claude_cli)} -p {quoted_phrase} "
-        f"--model {shlex.quote(model)} --no-session-persistence "
-        f"--bare --system-prompt ping --tools '' --disable-slash-commands"
+        f"--model {shlex.quote(model)} "
+        f"--setting-sources user "
+        f"--system-prompt ping --tools '' --disable-slash-commands"
     )
     session_name = f"qm_keepalive_{time.time_ns()}"
+    home_cd = f"cd {shlex.quote(str(Path.home()))} && "
     if delay_seconds > 0:
-        cmd_str = f"sleep {delay_seconds} && {shell} -lc {shlex.quote(inner)}"
+        cmd_str = f"sleep {delay_seconds} && {home_cd}{shell} -lc {shlex.quote(inner)}"
     else:
-        cmd_str = f"{shell} -lc {shlex.quote(inner)}"
+        cmd_str = f"{home_cd}{shell} -lc {shlex.quote(inner)}"
     tmux_cmd = [tmux_bin, "new-session", "-d", "-s", session_name, cmd_str]
     try:
         result = subprocess.run(tmux_cmd, capture_output=True, text=True, timeout=10)

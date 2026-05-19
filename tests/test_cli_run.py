@@ -216,6 +216,44 @@ def test_run_once_updates_codex_fetch_state_after_successful_fetch(tmp_path):
     assert saved["codex"]["last_reset_at"] == 5_000
 
 
+def test_run_once_updates_codex_fetch_state_from_codex_auth_cache(tmp_path):
+    cfg_path = _write_codex_config(tmp_path)
+    env_path = _write_env(tmp_path)
+    state_path = tmp_path / "state.json"
+    now = 1_234.0
+    fake_codex = ProbeResult(
+        source="codex",
+        timestamps=(),
+        extra={
+            "used_percent": 12,
+            "reset_at": 5_000,
+            "fetched": False,
+            "source": "codex-auth",
+        },
+    )
+
+    with patch("quota_monitor.cli.run.ensure_wrapper_installed", return_value=False), \
+         patch("quota_monitor.cli.run.platform_paths.codex_auth_file", return_value=tmp_path / "auth.json"), \
+         patch("quota_monitor.cli.run.scan_codex", return_value=fake_codex), \
+         patch("quota_monitor.cli.run.TelegramNotifier") as TG:
+        tg_instance = MagicMock(name="telegram")
+        tg_instance.name = "telegram"
+        TG.return_value = tg_instance
+        rc = run_once(
+            config_path=cfg_path,
+            env_path=env_path,
+            state_path=state_path,
+            now=now,
+            dry_run=False,
+        )
+
+    assert rc == 0
+    saved = json.loads(state_path.read_text())
+    assert saved["codex"]["last_fetch_at"] == int(now)
+    assert saved["codex"]["last_used_percent"] == 12
+    assert saved["codex"]["last_reset_at"] == 5_000
+
+
 def test_run_once_preserves_codex_fetch_state_when_alert_updates_cooldown(tmp_path):
     cfg_path = _write_codex_config(tmp_path)
     env_path = _write_env(tmp_path)

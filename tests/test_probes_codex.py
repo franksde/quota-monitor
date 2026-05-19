@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 from unittest.mock import patch, MagicMock
+from urllib.error import HTTPError
+
 import pytest
 from quota_monitor.probes._throttled_fetch import FetchHint
 from quota_monitor.probes.codex import scan_codex, CodexAuthMissingError
@@ -107,3 +109,90 @@ def test_missing_access_token_raises(tmp_path):
     bad.write_text('{"tokens": {}}')
     with pytest.raises(CodexAuthMissingError):
         scan_codex(auth_file=bad, now=1_000.0)
+
+
+def test_uses_codex_auth_registry_active_account_when_usage_api_returns_401(tmp_path):
+    auth = tmp_path / "auth.json"
+    auth.write_text('{"tokens": {"access_token": "expired"}}')
+    accounts = tmp_path / "accounts"
+    accounts.mkdir()
+    (accounts / "registry.json").write_text(json.dumps({
+        "active_account_key": "acct-active",
+        "accounts": [
+            {
+                "account_key": "acct-old",
+                "last_usage": {
+                    "primary": {"used_percent": 99, "resets_at": 1_500},
+                },
+            },
+            {
+                "account_key": "acct-active",
+                "last_usage": {
+                    "primary": {"used_percent": 12, "resets_at": 4_000},
+                },
+            },
+        ],
+    }))
+    err = HTTPError(
+        url="https://chatgpt.com/backend-api/wham/usage",
+        code=401,
+        msg="Unauthorized",
+        hdrs=None,
+        fp=None,
+    )
+
+    with patch("quota_monitor.probes.codex.urlopen", side_effect=err):
+        result = scan_codex(auth_file=auth, now=1_000.0)
+
+    assert result.source == "codex"
+    assert result.extra == {
+        "used_percent": 12,
+        "reset_at": 4_000,
+        "fetched": False,
+        "source": "codex-auth",
+    }
+
+
+def test_uses_last_hint_when_usage_api_fails_and_codex_auth_cache_unavailable(tmp_path):
+    auth = tmp_path / "auth.json"
+    auth.write_text('{"tokens": {"access_token": "expired"}}')
+    hint = FetchHint(last_fetch_at=0, last_used_percent=23, last_reset_at=4_000)
+    err = HTTPError(
+        url="https://chatgpt.com/backend-api/wham/usage",
+        code=401,
+        msg="Unauthorized",
+        hdrs=None,
+        fp=None,
+    )
+
+    with patch("quota_monitor.probes.codex.urlopen", side_effect=err):
+        result = scan_codex(auth_file=auth, now=1_000.0, hint=hint)
+
+    assert result.extra == {
+        "used_percent": 23,
+        "reset_at": 4_000,
+        "fetched": False,
+        "source": "last-success",
+    }
+
+
+def test_returns_unavailable_when_usage_api_fails_without_cache(tmp_path):
+    auth = tmp_path / "auth.json"
+    auth.write_text('{"tokens": {"access_token": "expired"}}')
+    err = HTTPError(
+        url="https://chatgpt.com/backend-api/wham/usage",
+        code=401,
+        msg="Unauthorized",
+        hdrs=None,
+        fp=None,
+    )
+
+    with patch("quota_monitor.probes.codex.urlopen", side_effect=err):
+        result = scan_codex(auth_file=auth, now=1_000.0)
+
+    assert result.extra == {
+        "used_percent": 0,
+        "reset_at": None,
+        "fetched": False,
+        "source": "unavailable",
+    }
