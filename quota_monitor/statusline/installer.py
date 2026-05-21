@@ -1,6 +1,7 @@
 import enum
 import json
 import os
+import sys
 from pathlib import Path
 
 WRAPPER_MARKER = "quota_monitor.statusline"
@@ -59,7 +60,7 @@ def install_wrapper(*, settings_path: Path, backup_path: Path) -> None:
 
     new_statusline = {
         "type": "command",
-        "command": "python3 -m quota_monitor.statusline",
+        "command": f"{sys.executable} -m quota_monitor.statusline",
         "refreshInterval": 5,
     }
     if isinstance(original_statusline, dict):
@@ -136,7 +137,7 @@ def ensure_wrapper_installed(*, settings_path: Path, backup_path: Path) -> bool:
 
     new_statusline = {
         "type": "command",
-        "command": "python3 -m quota_monitor.statusline",
+        "command": f"{sys.executable} -m quota_monitor.statusline",
         "refreshInterval": 5,
     }
     current = settings.get("statusLine")
